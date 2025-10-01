@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Form - TAMos</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h1>TAMos</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="form.html" class="nav-link active">Submit Form</a>
+                <a href="review.html" class="nav-link">Review Forms</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <section class="form-section">
+            <div class="container">
+                <h1 class="page-title">🧾 Technical Account Management - Status Review</h1>
+                <p class="page-subtitle">Please complete all sections below for your Technical Account Management status review.</p>
+                
+                <form id="healthForm" class="health-form">
+                    <!-- Section 1 - General Information -->
+                    <div class="form-section-header">
+                        <h2>Section 1 – General Information</h2>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input type="email" id="email" name="email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customerName">Customer Name / Business Unit Name *</label>
+                        <select id="customerName" name="customerName" required>
+                            <option value="">Select Customer</option>
+                            <option value="Bell Media">Bell Media</option>
+                            <option value="P&G">P&G</option>
+                            <option value="Amazon Games">Amazon Games</option>
+                        </select>
+                    </div>
+
+                    <!-- Section 2 - Account Governance -->
+                    <div class="form-section-header">
+                        <h2>Section 2 – Account Governance</h2>
+                        <p class="section-description">Select for each: Not Created / Needs Updating / Up To Date</p>
+                    </div>
+
+                    <div class="governance-table-container">
+                        <table class="governance-table">
+                            <thead>
+                                <tr>
+                                    <th>Document Type</th>
+                                    <th>Not Created</th>
+                                    <th>Needs Updating</th>
+                                    <th>Up To Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Confluence - Stakeholder Map *</strong></td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceStakeholderMap" value="not-created" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceStakeholderMap" value="needs-updating" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceStakeholderMap" value="up-to-date" required>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Confluence - Current Work Streams and On-Going Project Statuses *</strong></td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceWorkStreams" value="not-created" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceWorkStreams" value="needs-updating" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceWorkStreams" value="up-to-date" required>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Confluence - List of Deliverables *</strong></td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceDeliverables" value="not-created" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceDeliverables" value="needs-updating" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="confluenceDeliverables" value="up-to-date" required>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Environment Summary *</strong></td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="environmentSummary" value="not-created" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="environmentSummary" value="needs-updating" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="environmentSummary" value="up-to-date" required>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Google Drive Folder *</strong></td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="googleDriveFolder" value="not-created" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="googleDriveFolder" value="needs-updating" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="googleDriveFolder" value="up-to-date" required>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Project Plan *</strong></td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="projectPlan" value="not-created" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="projectPlan" value="needs-updating" required>
+                                    </td>
+                                    <td class="checkbox-cell">
+                                        <input type="radio" name="projectPlan" value="up-to-date" required>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="governanceComments">Additional Comments (Account Governance)</label>
+                        <textarea id="governanceComments" name="governanceComments" rows="4" placeholder="If some docs are not created, please provide justification (e.g. 'No stakeholder map as this is managed by CS')."></textarea>
+                    </div>
+
+                    <!-- Section 3 - Project Plan -->
+                    <div class="form-section-header">
+                        <h2>Section 3 – Project Plan</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="projectLandscapeState">What is the state of the project landscape? *</label>
+                        <select id="projectLandscapeState" name="projectLandscapeState" required>
+                            <option value="">Select State</option>
+                            <option value="ahead-of-schedule">Ahead Of Schedule</option>
+                            <option value="on-track">On Track</option>
+                            <option value="behind-schedule">Behind Schedule</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="projectPlanExtent">How far into the future does the current project plan extend? *</label>
+                        <input type="date" id="projectPlanExtent" name="projectPlanExtent" required>
+                        <small class="form-help">(If there are no future plans, add today's date.)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Who owns the project plan? * (Check all that apply)</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="projectPlanOwner" value="customer"> Customer
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="projectPlanOwner" value="cs"> CS
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="projectPlanOwner" value="tam"> TAM
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="projectManagementDescription">If not managed by TAM, please briefly describe how Braze-centric projects are managed by/for the customer.</label>
+                        <textarea id="projectManagementDescription" name="projectManagementDescription" rows="3"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="projectPlanComments">Additional Comments (Project Plan)</label>
+                        <textarea id="projectPlanComments" name="projectPlanComments" rows="4"></textarea>
+                    </div>
+
+                    <!-- Section 4 - Account Health -->
+                    <div class="form-section-header">
+                        <h2>Section 4 – Account Health</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="stakeholderRelationshipHealth">What is the Technical Stakeholder Relationship Health? *</label>
+                        <select id="stakeholderRelationshipHealth" name="stakeholderRelationshipHealth" required>
+                            <option value="">Select Health Score</option>
+                            <option value="red">Red</option>
+                            <option value="yellow">Yellow</option>
+                            <option value="green">Green</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="healthScoreReasoning">Why did you choose that health score? *</label>
+                        <textarea id="healthScoreReasoning" name="healthScoreReasoning" rows="4" required placeholder="e.g. Green – The technical stakeholders are active participants in all meetings, I receive positive feedback from calls, and the team's willingness to take my advice onboard shows that I am a trusted technical resource."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="technicalHealthReviewLink">Link To Technical Health Review *</label>
+                        <input type="url" id="technicalHealthReviewLink" name="technicalHealthReviewLink" required placeholder="https://...">
+                        <small class="form-help">(This is a prerequisite for the form.)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="accountHealthComments">Additional Comments (Account Health)</label>
+                        <textarea id="accountHealthComments" name="accountHealthComments" rows="4"></textarea>
+                    </div>
+
+                    <!-- Section 5 - Technical Business Reviews -->
+                    <div class="form-section-header">
+                        <h2>Section 5 – Technical Business Reviews (TBRs)</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tbrCount">How many TBRs have been performed in this contract cycle? *</label>
+                        <input type="number" id="tbrCount" name="tbrCount" min="0" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tamEngagementCriteria">Have you established some criteria with the customer by which you can measure the success of TAM engagement? *</label>
+                        <select id="tamEngagementCriteria" name="tamEngagementCriteria" required>
+                            <option value="">Select</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tamEngagementCriteriaDescription">If so, please outline the criteria below.</label>
+                        <textarea id="tamEngagementCriteriaDescription" name="tamEngagementCriteriaDescription" rows="4"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tamServicesMeetingCriteria">If so, how does TAM services meet the criteria above?</label>
+                        <textarea id="tamServicesMeetingCriteria" name="tamServicesMeetingCriteria" rows="4"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tbrComments">Additional Comments (Technical Business Review)</label>
+                        <textarea id="tbrComments" name="tbrComments" rows="4"></textarea>
+                    </div>
+
+                    <!-- Section 6 - Day-To-Day Operations -->
+                    <div class="form-section-header">
+                        <h2>Section 6 – Day-To-Day Operations</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="cadenceCallFrequency">How frequent are your cadence calls with the customer? *</label>
+                        <select id="cadenceCallFrequency" name="cadenceCallFrequency" required>
+                            <option value="">Select Frequency</option>
+                            <option value="daily">Daily</option>
+                            <option value="few-times-week">A few times a week</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="fortnightly">Fortnightly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="sporadically">Sporadically</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hoursPerWeek">How many hours per week on average are you spending on this customer? *</label>
+                        <input type="number" id="hoursPerWeek" name="hoursPerWeek" min="0" step="0.5" required>
+                        <small class="form-help">(Calculate from Certinia.)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="contractualHours">What is the customer's contractual allocation of hours? *</label>
+                        <input type="number" id="contractualHours" name="contractualHours" min="0" step="0.5" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dayToDayComments">Additional Comments (Day To Day Operations)</label>
+                        <textarea id="dayToDayComments" name="dayToDayComments" rows="4"></textarea>
+                    </div>
+
+                    <!-- Section 7 - Final Summary -->
+                    <div class="form-section-header">
+                        <h2>Section 7 – Final Summary</h2>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="renewalLikelihood">In your opinion, what is the likelihood of renewal? *</label>
+                        <select id="renewalLikelihood" name="renewalLikelihood" required>
+                            <option value="">Select Likelihood</option>
+                            <option value="very-likely">Very Likely</option>
+                            <option value="likely">Likely</option>
+                            <option value="unsure">Unsure</option>
+                            <option value="unlikely">Unlikely</option>
+                            <option value="very-unlikely">Very Unlikely</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="renewalReasoning">Please outline the reasoning behind your opinion. *</label>
+                        <textarea id="renewalReasoning" name="renewalReasoning" rows="4" required placeholder="Include any securities/risks that have not previously been addressed on this form that have informed your opinion."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="finalNotes">Final Notes</label>
+                        <textarea id="finalNotes" name="finalNotes" rows="4" placeholder="Last opportunity to provide any important context."></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="saveDraft" class="btn btn-secondary">Save Draft</button>
+                        <button type="submit" class="btn btn-primary">Submit Form</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 TAMos. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="privacy-manager.js"></script>
+    <script src="storage-manager.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

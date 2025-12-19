@@ -1,6 +1,6 @@
 # TAM-OS (Technical Account Manager Operating System)
 
-A client-side web application for managing customer health assessments and form submissions. Built with vanilla JavaScript, HTML, and CSS with local data storage capabilities.
+A Next.js web application for managing customer health assessments and form submissions. Built with Next.js, React, and NextAuth for secure authentication.
 
 ## 🚀 Features
 
@@ -8,174 +8,276 @@ A client-side web application for managing customer health assessments and form 
 - **Form Submission**: Complete customer health assessment forms
 - **Draft Management**: Save and resume incomplete forms
 - **Form Review**: View and manage submitted forms and drafts
-- **Local Storage**: All data stored locally in the browser
-- **Offline-First**: Works without internet connection
+- **Local Storage**: All data stored locally in the browser (client-side persistence)
+- **Secure Authentication**: Google OAuth with @braze.com email restriction
 
 ### Data Management
-- **Draft Auto-Save**: Forms are automatically saved as drafts
+- **Draft Auto-Save**: Forms can be saved as drafts
 - **Form Validation**: Client-side validation before submission
 - **Data Persistence**: Uses localStorage and IndexedDB for reliable storage
-- **Export/Import**: JSON export/import capabilities
-- **Privacy Controls**: Optional encryption for sensitive data
+- **Multi-tab Safe**: Handles concurrent access across browser tabs
 
 ## 📁 Project Structure
 
 ```
 tam-os/
-├── index.html          # Landing page
-├── form.html           # Form submission page
-├── review.html         # Form review and management page
-├── script.js           # Main application logic
-├── storage-manager.js  # Data storage and persistence
-├── privacy-manager.js  # Optional data encryption
-├── styles.css          # Application styling
-└── README.md           # This file
+├── pages/
+│   ├── _app.js              # Next.js app wrapper with SessionProvider
+│   ├── index.js             # Home page with login gate
+│   ├── form.js              # Form submission page
+│   ├── review.js            # Form review and management page
+│   └── api/
+│       ├── auth/
+│       │   └── [...nextauth].js  # NextAuth configuration
+│       └── healthscore.js   # Protected API endpoint example
+├── lib/
+│   └── storage-manager.js   # Data storage and persistence (browser-only)
+├── styles.css                # Application styling
+├── package.json             # Dependencies
+├── next.config.js           # Next.js configuration
+└── .env.local.example       # Environment variables template
 ```
 
 ## 🛠️ Technical Stack
 
-- **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3
-- **Storage**: localStorage, sessionStorage, IndexedDB
-- **Encryption**: Web Crypto API (optional)
-- **Architecture**: Client-side only, no backend required
+- **Framework**: Next.js 14 (Pages Router)
+- **Frontend**: React 18
+- **Authentication**: NextAuth.js (Auth.js) with Google OAuth
+- **Storage**: localStorage, sessionStorage, IndexedDB (client-side only)
+- **Deployment**: Vercel-ready
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-- No server setup required
+- Node.js 18+ and npm
+- Google OAuth credentials (Client ID and Secret)
+- A @braze.com Google account for testing
 
 ### Installation
-1. Clone or download the repository
-2. Open `index.html` in your web browser
-3. Start using the application immediately
 
-### First Time Setup
-1. Open the application in your browser
-2. Navigate to the form page
-3. Fill out and submit your first form
-4. Use the review page to manage forms and drafts
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd tam-os
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   
+   Copy `.env.local.example` to `.env.local`:
+   ```bash
+   cp .env.local.example .env.local
+   ```
+   
+   Edit `.env.local` and add your credentials:
+   ```env
+   GOOGLE_CLIENT_ID=your_google_client_id_here
+   GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_SECRET=your_nextauth_secret_here
+   ```
+   
+   **Generate NEXTAUTH_SECRET:**
+   ```bash
+   openssl rand -base64 32
+   ```
+
+4. **Run the development server**
+   ```bash
+   npm run dev
+   ```
+
+5. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+### Google OAuth Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select an existing one
+3. Enable the Google+ API
+4. Go to "Credentials" → "Create Credentials" → "OAuth client ID"
+5. Configure OAuth consent screen:
+   - User Type: Internal (for @braze.com only)
+   - Scopes: email, profile
+6. Create OAuth 2.0 Client ID:
+   - Application type: Web application
+   - Authorized redirect URIs:
+     - `http://localhost:3000/api/auth/callback/google` (for local dev)
+     - `https://tamos-pink.vercel.app/api/auth/callback/google` (for production)
+7. Copy the Client ID and Client Secret to your `.env.local`
+
+## 🔐 Authentication
+
+### Access Control
+- **Email Restriction**: Only users with `@braze.com` email addresses can sign in
+- **Email Verification**: Requires verified Google email
+- **Server-side Validation**: All API routes check authentication and email domain
+
+### Sign In Flow
+1. User clicks "Sign in with Google"
+2. Google OAuth consent screen appears (filtered to @braze.com)
+3. User grants permissions
+4. NextAuth validates email ends with `@braze.com` and is verified
+5. User is redirected to the app
 
 ## 📋 Usage Guide
 
 ### Submitting Forms
-1. Go to the **Form** page
-2. Fill out the customer health assessment
-3. Click **"Save Draft"** to save progress
-4. Click **"Submit Form"** when complete
+1. Sign in with your @braze.com Google account
+2. Navigate to **Submit Form** page
+3. Fill out the customer health assessment
+4. Click **"Save Draft"** to save progress
+5. Click **"Submit Form"** when complete
 
 ### Managing Drafts
-1. Go to the **Review** page
+1. Go to the **Review Forms** page
 2. View all drafts and completed forms
 3. Click on a draft to continue editing
 4. Use the delete button (🗑️) to remove drafts
 
 ### Data Management
-- **Drafts**: Automatically saved as you type
-- **Submissions**: Finalized forms stored permanently
-- **Export**: Download data as JSON for backup
-- **Privacy**: Optional encryption for sensitive data
+- **Drafts**: Saved to localStorage/IndexedDB (client-side only)
+- **Submissions**: Stored locally in browser
+- **Multi-tab**: Changes sync across browser tabs
 
 ## 🔧 Configuration
+
+### Environment Variables
+
+#### Local Development (`.env.local`)
+```env
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_secret_key
+```
+
+#### Production (Vercel Environment Variables)
+```env
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+NEXTAUTH_URL=https://tamos-pink.vercel.app
+NEXTAUTH_SECRET=your_secret_key
+```
 
 ### Storage Options
 - **localStorage**: Primary storage for drafts and submissions
 - **IndexedDB**: Backup storage for larger datasets
 - **sessionStorage**: Temporary storage for active sessions
 
-### Privacy Settings
-- **Encryption**: Optional password-protected data encryption
-- **Data Retention**: Automatic cleanup of old drafts
-- **Export Controls**: JSON export with optional encryption
+## 🚢 Deployment
 
-## 📊 Data Models
+### Vercel Deployment
 
-### Submission
-```javascript
-{
-  id: "submission_1234567890_abc123",
-  formVersion: "1.0",
-  status: "submitted",
-  createdAt: "2024-01-01T00:00:00.000Z",
-  updatedAt: "2024-01-01T00:00:00.000Z",
-  payload: { /* form data */ }
-}
-```
+1. **Push to GitHub**
+   ```bash
+   git add .
+   git commit -m "Initial Next.js migration"
+   git push origin main
+   ```
 
-### Draft
-```javascript
-{
-  id: "draft_1234567890_abc123",
-  formVersion: "1.0", 
-  status: "draft",
-  updatedAt: "2024-01-01T00:00:00.000Z",
-  payload: { /* form data */ }
-}
-```
+2. **Deploy to Vercel**
+   - Go to [Vercel](https://vercel.com)
+   - Import your GitHub repository
+   - Add environment variables (same as `.env.local` but with production URL)
+   - Deploy
 
-## 🔒 Privacy & Security
+3. **Update Google OAuth Redirect URI**
+   - Add `https://your-domain.vercel.app/api/auth/callback/google` to authorized redirect URIs in Google Cloud Console
+
+## 📊 API Routes
+
+### Protected Endpoints
+
+All API routes require authentication and @braze.com email verification.
+
+**Example: `/api/healthscore`**
+- Method: POST
+- Authentication: Required (NextAuth session)
+- Email Restriction: Must be @braze.com
+- Response: JSON with submission confirmation
+
+## 🔒 Security
+
+### Authentication
+- Server-side session validation
+- Email domain restriction (@braze.com only)
+- Email verification requirement
+- Secure cookie-based sessions
 
 ### Data Storage
-- All data stored locally in your browser
-- No data sent to external servers
-- Optional encryption for sensitive information
-
-### Encryption (Optional)
-- Uses Web Crypto API for client-side encryption
-- Password-protected data storage
-- Can be enabled/disabled in settings
-
-### Data Control
-- Complete control over your data
-- Export/import capabilities
-- Clear data options available
+- All form data stored client-side (localStorage/IndexedDB)
+- No sensitive data sent to server (except via protected API routes)
+- Browser-based encryption not included (removed privacy-manager)
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
-1. **Drafts not saving**: Check browser storage permissions
-2. **Forms not loading**: Clear browser cache and reload
-3. **Data missing**: Check if localStorage is enabled
+
+1. **"Sign in with Google" not working**
+   - Check Google OAuth credentials in `.env.local`
+   - Verify redirect URI matches in Google Cloud Console
+   - Ensure NEXTAUTH_URL matches your current URL
+
+2. **"Access denied" error**
+   - Verify your email ends with `@braze.com`
+   - Check that email is verified in Google account
+   - Review NextAuth callbacks in `pages/api/auth/[...nextauth].js`
+
+3. **Drafts not saving**
+   - Check browser storage permissions
+   - Verify localStorage/IndexedDB is enabled
+   - Check browser console for errors
+
+4. **Forms not loading**
+   - Clear browser cache and reload
+   - Check that storage-manager.js is loading correctly
+   - Verify browser compatibility
 
 ### Browser Compatibility
-- Chrome 60+
-- Firefox 55+
-- Safari 11+
-- Edge 79+
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
 
-## 🔄 Data Migration
+## 🔄 Migration from Static Site
 
-### Exporting Data
-1. Go to Review page
-2. Use export functionality to download JSON
-3. Store backup file securely
+### What Changed
+- ✅ Converted from vanilla HTML/JS to Next.js + React
+- ✅ Added NextAuth with Google OAuth (@braze.com restriction)
+- ✅ Moved `storage-manager.js` to `lib/` with browser guards
+- ✅ Removed `privacy-manager.js` (replaced by NextAuth)
+- ✅ Converted DOM event listeners to React handlers
+- ✅ Added login gate on all pages
+- ✅ Created protected API route example
+- ✅ Maintained existing UI/UX and styling
 
-### Importing Data
-1. Use import functionality on Review page
-2. Select previously exported JSON file
-3. Data will be restored to local storage
+### Breaking Changes
+- Requires Node.js and npm to run
+- Requires Google OAuth setup
+- Requires @braze.com email to access
+- Client-side storage unchanged (backward compatible with existing data)
 
 ## 📈 Performance
 
 ### Optimization Features
+- Server-side rendering for initial page load
+- Client-side hydration for interactivity
+- Efficient React state management
 - Debounced auto-save to prevent excessive writes
-- Efficient data structures for fast retrieval
-- Minimal memory footprint
-- Responsive UI design
-
-### Storage Limits
-- localStorage: ~5-10MB per domain
-- IndexedDB: ~50MB+ per domain
-- Automatic cleanup of old data
+- Minimal bundle size with Next.js optimizations
 
 ## 🤝 Contributing
 
-This is a client-side application with no backend dependencies. To contribute:
-
 1. Fork the repository
-2. Make your changes
-3. Test thoroughly in multiple browsers
-4. Submit a pull request
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
 ## 📄 License
 
@@ -186,9 +288,9 @@ This is a client-side application with no backend dependencies. To contribute:
 For issues or questions:
 1. Check the troubleshooting section
 2. Review browser console for errors
-3. Ensure all files are properly loaded
-4. Verify browser compatibility
+3. Verify environment variables are set correctly
+4. Check Next.js and NextAuth documentation
 
 ---
 
-**Note**: This application stores all data locally in your browser. Make sure to export your data regularly for backup purposes.
+**Note**: This application stores form data locally in your browser. Make sure to export your data regularly for backup purposes. Authentication is handled server-side via NextAuth.

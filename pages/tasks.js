@@ -29,6 +29,8 @@ export default function Tasks() {
       return
     }
 
+    console.log(session?.user);
+
     if (typeof window !== "undefined" && StorageManager) {
       const sm = new StorageManager()
       setStorageManager(sm)

@@ -38,14 +38,41 @@ export default function Tasks() {
 
   const loadData = async (sm) => {
     try {
-      const [tasksData, clientsData] = await Promise.all([
+      const [localTasks, clientsData] = await Promise.all([
         sm.getTasks(),
         sm.getClients()
-      ])
-      setTasks(tasksData)
-      setClients(clientsData)
+      ]);
+
+      let sheetTasks = [];
+      if (session?.user?.id) {
+        try {
+          // Pass the ID in the URL string
+          const response = await fetch(`/api/google_sheets/tasks?id=${encodeURIComponent(session?.user?.id)}`, {
+            method: 'GET'
+          });
+
+          if (response.ok) {
+            sheetTasks = await response.json();
+          } else {
+            console.error('Failed to fetch tasks:', response.statusText);
+          }
+        } catch (err) {
+          console.error('Network error fetching sheet tasks:', err);
+        }
+      }
+      console.log('Sheet tasks:', sheetTasks);
+
+      const combinedTasks = [...localTasks, ...sheetTasks];
+
+      console.log(combinedTasks);
+
+      const uniqueTasks = Array.from(new Map(combinedTasks.map(t => [t.id, t])).values());
+
+      setTasks(uniqueTasks);
+      setClients(clientsData);
+
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error('Error loading data:', error);
     }
   }
 
@@ -55,7 +82,7 @@ export default function Tasks() {
     // Apply view filters
     switch (filterView) {
       case 'my-tasks':
-        filtered = filtered.filter(t => t.owner === session?.user?.email)
+        filtered = filtered.filter(t => t.user_id === session?.user?.id)
         break
       case 'waiting-client':
         filtered = filtered.filter(t => t.ballWith === 'Client')
@@ -104,12 +131,6 @@ export default function Tasks() {
     })
 
     return filtered
-  }
-
-  const getClientName = (clientId) => {
-    if (!clientId) return 'No Client'
-    const client = clients.find(c => c.id === clientId)
-    return client ? client.name : 'Unknown Client'
   }
 
   const formatDate = (dateString) => {
@@ -366,17 +387,17 @@ export default function Tasks() {
                       onClick={() => openTaskDetail(task)}
                       style={{ cursor: 'pointer' }}
                     >
-                      <td>{getClientName(task.clientId)}</td>
+                      <td>{task.account_name}</td>
                       <td className="task-title-cell">
                         <strong>{task.title}</strong>
                       </td>
-                      <td>{task.type}</td>
+                      <td>{task.category}</td>
                       <td>{getStatusBadge(task.status)}</td>
                       <td>{task.ballWith}</td>
-                      <td className="next-step-cell">{task.nextStep || '—'}</td>
-                      <td>{formatDate(task.dueDate)}</td>
+                      <td className="next-step-cell">{task.next_step || '—'}</td>
+                      <td>{formatDate(task.date)}</td>
                       <td>{getPriorityBadge(task.priority)}</td>
-                      <td>{task.owner || '—'}</td>
+                      <td>{task.user_first_name || '—'}</td>
                       <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
                       <td>{task.managerAttention ? '⚠️' : ''}</td>
                     </tr>
@@ -502,7 +523,7 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
           <div>
             <h2>{task.title}</h2>
             <p className="task-drawer-meta">
-              {getClientName(task.clientId)} • {task.type} • Owner: {task.owner || 'Unassigned'}
+              {getClientName(task.clientId)} • {task.category} • Owner: {task.owner || 'Unassigned'}
             </p>
           </div>
           <div className="task-drawer-actions">
@@ -520,7 +541,7 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
               <div><strong>Ball With:</strong> {task.ballWith}</div>
               <div><strong>Priority:</strong> {task.priority}</div>
               <div><strong>Due Date:</strong> {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</div>
-              <div><strong>Next Step:</strong> {task.nextStep || '—'}</div>
+              <div><strong>Next Step:</strong> {task.next_step || '—'}</div>
               <div><strong>Manager Attention:</strong> {task.managerAttention ? 'Yes ⚠️' : 'No'}</div>
             </div>
           </div>
@@ -656,7 +677,7 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
     type: task?.type || 'Other',
     status: task?.status || 'Not started',
     ballWith: task?.ballWith || 'TAM',
-    nextStep: task?.nextStep || '',
+    next_step: task?.next_step || '',
     dueDate: task?.dueDate || '',
     priority: task?.priority || 'Medium',
     owner: task?.owner || session?.user?.email || '',
@@ -674,7 +695,7 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.title.trim() || !formData.nextStep.trim()) {
+    if (!formData.title.trim() || !formData.next_step.trim()) {
       alert('Title and Next Step are required')
       return
     }
@@ -899,8 +920,8 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
             <label>Next Step *</label>
             <input 
               type="text"
-              value={formData.nextStep}
-              onChange={(e) => setFormData({ ...formData, nextStep: e.target.value })}
+              value={formData.next_step}
+              onChange={(e) => setFormData({ ...formData, next_step: e.target.value })}
               placeholder="Short description of next action"
               required
             />

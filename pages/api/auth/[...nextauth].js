@@ -1,5 +1,6 @@
 import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
+import { getUser } from "../google_sheets/users";
 
 export const authOptions = {
   providers: [
@@ -8,29 +9,45 @@ export const authOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       authorization: {
         params: {
-          hd: "braze.com", // Hint to Google to show only @braze.com accounts
+          hd: "braze.com",
         },
       },
     }),
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // Require email to be verified
-      if (!profile?.email_verified) {
+      if (!profile?.email_verified || !profile?.email?.endsWith("@braze.com")) {
         return false;
       }
-      
-      // Require email to end with @braze.com
-      if (!profile?.email?.endsWith("@braze.com")) {
-        return false;
-      }
-      
       return true;
     },
+
+    async jwt({ token, user }) {
+      if (user) {
+        token.picture = user.image || profile?.picture;
+      }
+
+      if (token?.email && !token.sheetData) {
+        try {
+          const sheetData = await getUser(token.email);
+          token.sheetData = sheetData;
+        } catch (error) {
+          console.error("Error fetching user from sheet during JWT phase:", error);
+        }
+      }
+      return token;
+    },
+
     async session({ session, token }) {
-      // Ensure email is in session
-      if (session?.user?.email && !session.user.email.endsWith("@braze.com")) {
-        return null; // Reject session if email doesn't match
+      if (session?.user) {
+        if (!session.user.email?.endsWith("@braze.com")) return null;
+          const { email_address, ...otherSheetFields } = token.sheetData;
+
+          session.user = {
+            ...session.user,
+            image: token.picture,
+            ...otherSheetFields
+          };
       }
       return session;
     },
@@ -42,4 +59,3 @@ export const authOptions = {
 }
 
 export default NextAuth(authOptions)
-

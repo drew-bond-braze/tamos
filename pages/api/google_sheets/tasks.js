@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 
-export async function getTasksById(userId) {
+export async function getTasksByUserId(userId) {
   try {
     const auth = new google.auth.GoogleAuth({
       credentials: {
@@ -37,6 +37,9 @@ export async function getTasksById(userId) {
   }
 }
 
+
+// TODO:
+// -- ADD TASK
 export async function addTask(taskData) {
   try {
     const auth = new google.auth.GoogleAuth({
@@ -79,12 +82,17 @@ export async function addTask(taskData) {
   }
 }
 
+// TODO:
+// -- UPDATE TASK
+
+// TODO:
+// -- DELETE TASK
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: 'ID required' });
     try {
-      const data = await getTasksById(id);
+      const data = await getTasksByUserId(id);
       return res.status(200).json(data);
     } catch (error) {
       return res.status(500).json({ error: 'Fetch failed' });

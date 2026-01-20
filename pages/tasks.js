@@ -54,7 +54,6 @@ export default function Tasks() {
       let localTasks = [];
       if (session?.user?.id) {
         try {
-          // Pass the ID in the URL string
           const response = await fetch(`/api/google_sheets/tasks?id=${encodeURIComponent(session?.user?.id)}`, {
             method: 'GET'
           });

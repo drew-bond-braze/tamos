@@ -76,10 +76,6 @@ export default function Home() {
     )
   }
 
-  const userName = session.user?.name || session.user?.email || "User"
-  const userInitial = userName.charAt(0).toUpperCase()
-  const userImage = session.user?.image
-
   // User is authenticated - show the app
   return (
     <div>
@@ -111,18 +107,8 @@ export default function Home() {
                 <p>You have 3 tasks due today and 2 projects at risk.</p>
               </div>
               <div className="dashboard-user">
-                <span>{userName}</span>
-                <div className="avatar">
-                  {userImage ? (
-                    <img
-                      src={userImage}
-                      alt={`${userName} avatar`}
-                      className="avatar-image"
-                    />
-                  ) : (
-                    userInitial
-                  )}
-                </div>
+                <span>{session.user?.name || session.user?.email}</span>
+                <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
                 <button
                   onClick={() => signOut({ callbackUrl: '/' })}
                   className="btn btn-secondary auth-button"

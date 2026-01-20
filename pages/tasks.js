@@ -71,9 +71,6 @@ export default function Tasks() {
       console.log('Sheet tasks:', sheetTasks);
 
       const combinedTasks = [...localTasks, ...sheetTasks];
-
-      console.log(combinedTasks);
-
       const uniqueTasks = Array.from(new Map(combinedTasks.map(t => [t.id, t])).values());
 
       setTasks(uniqueTasks)
@@ -398,7 +395,7 @@ export default function Tasks() {
                           onClick={() => openTaskDetail(task)}
                           style={{ cursor: 'pointer' }}
                         >
-                          <td>{getTamUnitName(task.tamUnitId)}</td>
+                          <td>{getTamUnitName(task.accountName)}</td>
                           <td>{getProjectName(task.projectId)}</td>
                           <td className="task-title-cell">
                             <strong>{task.title}</strong>

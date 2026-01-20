@@ -19,7 +19,7 @@ export async function getTasksById(userId) {
     if (!rows || rows.length <= 1) return [];
 
     const headers = rows[0];
-    const ownerIndex = headers.indexOf('user_id'); // Ensure this matches your column header
+    const ownerIndex = headers.indexOf('userId'); // Ensure this matches your column header
 
     // Filter rows where owner matches the email
     const userTasks = rows.slice(1).filter(row => row[ownerIndex] === userId);

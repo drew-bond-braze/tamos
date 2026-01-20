@@ -32,6 +32,8 @@ export default function Tasks() {
       return
     }
 
+    console.log(session?.user);
+
     if (typeof window !== "undefined" && StorageManager) {
       const sm = new StorageManager()
       setStorageManager(sm)
@@ -47,12 +49,35 @@ export default function Tasks() {
         sm.getProjects(),
         sm.getTamUnits()
       ])
-      setTasks(tasksData)
+
+      let sheetTasks = [];
+      let localTasks = [];
+      if (session?.user?.id) {
+        try {
+          const response = await fetch(`/api/google_sheets/tasks?id=${encodeURIComponent(session?.user?.id)}`, {
+            method: 'GET'
+          });
+
+          if (response.ok) {
+            sheetTasks = await response.json();
+          } else {
+            console.error('Failed to fetch tasks:', response.statusText);
+          }
+        } catch (err) {
+          console.error('Network error fetching sheet tasks:', err);
+        }
+      }
+      console.log('Sheet tasks:', sheetTasks);
+
+      const combinedTasks = [...localTasks, ...sheetTasks];
+      const uniqueTasks = Array.from(new Map(combinedTasks.map(t => [t.id, t])).values());
+
+      setTasks(uniqueTasks)
       setClients(clientsData)
       setProjects(projectsData)
       setTamUnits(tamUnitsData)
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error('Error loading data:', error);
     }
   }
 
@@ -62,7 +87,7 @@ export default function Tasks() {
     // Apply view filters
     switch (filterView) {
       case 'my-tasks':
-        filtered = filtered.filter(t => t.owner === session?.user?.email)
+        filtered = filtered.filter(t => t.user_id === session?.user?.id)
         break
       case 'due-this-week':
         const now = new Date()
@@ -369,7 +394,7 @@ export default function Tasks() {
                           onClick={() => openTaskDetail(task)}
                           style={{ cursor: 'pointer' }}
                         >
-                          <td>{getTamUnitName(task.tamUnitId)}</td>
+                          <td>{getTamUnitName(task.accountName)}</td>
                           <td>{getProjectName(task.projectId)}</td>
                           <td className="task-title-cell">
                             <strong>{task.title}</strong>

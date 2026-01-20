@@ -1,6 +1,7 @@
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/router"
 import Link from "next/link"
+import Head from "next/head"
 import { useEffect, useState } from "react"
 
 // Dynamically import storage manager (client-side only)
@@ -16,8 +17,10 @@ export default function Tasks() {
   const [storageManager, setStorageManager] = useState(null)
   const [tasks, setTasks] = useState([])
   const [clients, setClients] = useState([])
+  const [projects, setProjects] = useState([])
+  const [tamUnits, setTamUnits] = useState([])
   const [filterView, setFilterView] = useState('all')
-  const [selectedClient, setSelectedClient] = useState('all')
+  const [selectedTamUnit, setSelectedTamUnit] = useState('all')
   const [selectedTask, setSelectedTask] = useState(null)
   const [showTaskDrawer, setShowTaskDrawer] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
@@ -38,12 +41,16 @@ export default function Tasks() {
 
   const loadData = async (sm) => {
     try {
-      const [tasksData, clientsData] = await Promise.all([
+      const [tasksData, clientsData, projectsData, tamUnitsData] = await Promise.all([
         sm.getTasks(),
-        sm.getClients()
+        sm.getClients(),
+        sm.getProjects(),
+        sm.getTamUnits()
       ])
       setTasks(tasksData)
       setClients(clientsData)
+      setProjects(projectsData)
+      setTamUnits(tamUnitsData)
     } catch (error) {
       console.error('Error loading data:', error)
     }
@@ -56,12 +63,6 @@ export default function Tasks() {
     switch (filterView) {
       case 'my-tasks':
         filtered = filtered.filter(t => t.owner === session?.user?.email)
-        break
-      case 'waiting-client':
-        filtered = filtered.filter(t => t.ballWith === 'Client')
-        break
-      case 'manager-attention':
-        filtered = filtered.filter(t => t.managerAttention === true)
         break
       case 'due-this-week':
         const now = new Date()
@@ -81,8 +82,8 @@ export default function Tasks() {
         })
         break
       case 'by-client':
-        if (selectedClient !== 'all') {
-          filtered = filtered.filter(t => t.clientId === selectedClient)
+        if (selectedTamUnit !== 'all') {
+          filtered = filtered.filter(t => t.tamUnitId === selectedTamUnit)
         }
         break
     }
@@ -106,10 +107,16 @@ export default function Tasks() {
     return filtered
   }
 
-  const getClientName = (clientId) => {
-    if (!clientId) return 'No Client'
-    const client = clients.find(c => c.id === clientId)
-    return client ? client.name : 'Unknown Client'
+  const getTamUnitName = (tamUnitId) => {
+    if (!tamUnitId) return 'Personal'
+    const unit = tamUnits.find(u => u.id === tamUnitId)
+    return unit ? unit.name : 'Unknown TAM Unit'
+  }
+
+  const getProjectName = (projectId) => {
+    if (!projectId) return 'No Project'
+    const project = projects.find(p => p.id === projectId)
+    return project ? project.name : 'Unknown Project'
   }
 
   const formatDate = (dateString) => {
@@ -231,168 +238,162 @@ export default function Tasks() {
   }
 
   if (!session) {
-    return null
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <p>Redirecting to sign in...</p>
+      </div>
+    )
   }
 
   const filteredTasks = getFilteredTasks()
 
   return (
     <div>
-      <nav className="navbar">
-        <div className="nav-container">
-          <div className="nav-logo">
-            <h1>TAM OS</h1>
+      <Head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      </Head>
+      <div className="app-shell">
+        <nav className="navbar">
+          <div className="nav-container">
+            <div className="nav-logo">
+              <h1>TAM OS</h1>
+            </div>
+            <div className="nav-menu">
+              <Link href="/" className="nav-link">My Dashboard</Link>
+              <Link href="/tasks" className="nav-link active">My Tasks</Link>
+              <Link href="/projects" className="nav-link">My Projects</Link>
+              <Link href="/tam-units" className="nav-link">My TAM Units</Link>
+            </div>
           </div>
-          <div className="nav-menu">
-            <Link href="/" className="nav-link">Home</Link>
-            <Link href="/tasks" className="nav-link active">Tasks</Link>
-          </div>
-          <div className="nav-user">
-            <span className="user-email">{session.user?.email || session.user?.name}</span>
+        </nav>
+
+        <div className="app-main">
+          <div className="page-topbar">
             <button 
               onClick={() => signOut({ callbackUrl: '/' })} 
-              className="btn-logout"
-              title="Sign out"
+              className="btn btn-secondary auth-button"
             >
-              Sign Out
+              Sign out
             </button>
           </div>
-        </div>
-      </nav>
-
-      <main className="main-content">
-        <div className="tasks-container">
-          <div className="tasks-header">
-            <div>
-              <h1 className="page-title">Task Tracker</h1>
-              <p className="page-subtitle">Track tasks and projects per client</p>
-            </div>
-            <button onClick={handleNewTask} className="btn btn-primary">
-              + New Task
-            </button>
-          </div>
-
-          <div className="tasks-filters">
-            <div className="filter-tabs">
-              <button 
-                className={filterView === 'all' ? 'filter-tab active' : 'filter-tab'}
-                onClick={() => setFilterView('all')}
-              >
-                All Tasks
-              </button>
-              <button 
-                className={filterView === 'my-tasks' ? 'filter-tab active' : 'filter-tab'}
-                onClick={() => setFilterView('my-tasks')}
-              >
-                My Tasks
-              </button>
-              <button 
-                className={filterView === 'waiting-client' ? 'filter-tab active' : 'filter-tab'}
-                onClick={() => setFilterView('waiting-client')}
-              >
-                Waiting on Client
-              </button>
-              <button 
-                className={filterView === 'manager-attention' ? 'filter-tab active' : 'filter-tab'}
-                onClick={() => setFilterView('manager-attention')}
-              >
-                Manager Attention
-              </button>
-              <button 
-                className={filterView === 'due-this-week' ? 'filter-tab active' : 'filter-tab'}
-                onClick={() => setFilterView('due-this-week')}
-              >
-                Due This Week
-              </button>
-              <button 
-                className={filterView === 'recently-updated' ? 'filter-tab active' : 'filter-tab'}
-                onClick={() => setFilterView('recently-updated')}
-              >
-                Recently Updated
-              </button>
-              <button 
-                className={filterView === 'by-client' ? 'filter-tab active' : 'filter-tab'}
-                onClick={() => setFilterView('by-client')}
-              >
-                By Client
-              </button>
-            </div>
-
-            {filterView === 'by-client' && (
-              <div className="client-filter">
-                <select 
-                  value={selectedClient}
-                  onChange={(e) => setSelectedClient(e.target.value)}
-                  className="client-select"
-                >
-                  <option value="all">All Clients</option>
-                  {clients.map(client => (
-                    <option key={client.id} value={client.id}>{client.name}</option>
-                  ))}
-                </select>
+          <main className="main-content">
+            <div className="tasks-container">
+              <div className="tasks-header">
+                <div>
+                  <h1 className="page-title">Task Tracker</h1>
+                  <p className="page-subtitle">Track tasks and projects per client</p>
+                </div>
+                <button onClick={handleNewTask} className="btn btn-primary">
+                  + New Task
+                </button>
               </div>
-            )}
-          </div>
 
-          <div className="tasks-table-container">
-            <table className="tasks-table">
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Task</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Ball With</th>
-                  <th>Next Step</th>
-                  <th>Due Date</th>
-                  <th>Priority</th>
-                  <th>Owner</th>
-                  <th>Last Update</th>
-                  <th>⚠️</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTasks.length === 0 ? (
-                  <tr>
-                    <td colSpan="11" style={{ textAlign: 'center', padding: '40px' }}>
-                      <p>No tasks found. <button onClick={handleNewTask} className="btn-link">Create your first task</button></p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTasks.map(task => (
-                    <tr 
-                      key={task.id} 
-                      className="task-row"
-                      onClick={() => openTaskDetail(task)}
-                      style={{ cursor: 'pointer' }}
+              <div className="tasks-filters">
+                <div className="filter-tabs">
+                  <button 
+                    className={filterView === 'all' ? 'filter-tab active' : 'filter-tab'}
+                    onClick={() => setFilterView('all')}
+                  >
+                    All Tasks
+                  </button>
+                  <button 
+                    className={filterView === 'my-tasks' ? 'filter-tab active' : 'filter-tab'}
+                    onClick={() => setFilterView('my-tasks')}
+                  >
+                    My Tasks
+                  </button>
+                  <button 
+                    className={filterView === 'due-this-week' ? 'filter-tab active' : 'filter-tab'}
+                    onClick={() => setFilterView('due-this-week')}
+                  >
+                    Due This Week
+                  </button>
+                  <button 
+                    className={filterView === 'recently-updated' ? 'filter-tab active' : 'filter-tab'}
+                    onClick={() => setFilterView('recently-updated')}
+                  >
+                    Recently Updated
+                  </button>
+                  <button 
+                    className={filterView === 'by-client' ? 'filter-tab active' : 'filter-tab'}
+                    onClick={() => setFilterView('by-client')}
+                  >
+                    By TAM Unit
+                  </button>
+                </div>
+
+                {filterView === 'by-client' && (
+                  <div className="client-filter">
+                    <select 
+                      value={selectedTamUnit}
+                      onChange={(e) => setSelectedTamUnit(e.target.value)}
+                      className="client-select"
                     >
-                      <td>{getClientName(task.clientId)}</td>
-                      <td className="task-title-cell">
-                        <strong>{task.title}</strong>
-                      </td>
-                      <td>{task.type}</td>
-                      <td>{getStatusBadge(task.status)}</td>
-                      <td>{task.ballWith}</td>
-                      <td className="next-step-cell">{task.nextStep || '—'}</td>
-                      <td>{formatDate(task.dueDate)}</td>
-                      <td>{getPriorityBadge(task.priority)}</td>
-                      <td>{task.owner || '—'}</td>
-                      <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
-                      <td>{task.managerAttention ? '⚠️' : ''}</td>
-                    </tr>
-                  ))
+                      <option value="all">All TAM Units</option>
+                      {tamUnits.map(unit => (
+                        <option key={unit.id} value={unit.id}>{unit.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </main>
+              </div>
+
+              <div className="tasks-table-container">
+                <table className="tasks-table">
+                  <thead>
+                    <tr>
+                      <th>TAM Unit</th>
+                      <th>Project</th>
+                      <th>Task</th>
+                      <th>Status</th>
+                      <th>Due Date</th>
+                      <th>Priority</th>
+                      <th>Owner</th>
+                      <th>Last Update</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTasks.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
+                          <p>No tasks found. <button onClick={handleNewTask} className="btn-link">Create your first task</button></p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTasks.map(task => (
+                        <tr 
+                          key={task.id} 
+                          className="task-row"
+                          onClick={() => openTaskDetail(task)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td>{getTamUnitName(task.tamUnitId)}</td>
+                          <td>{getProjectName(task.projectId)}</td>
+                          <td className="task-title-cell">
+                            <strong>{task.title}</strong>
+                          </td>
+                          <td>{getStatusBadge(task.status)}</td>
+                          <td>{formatDate(task.dueDate)}</td>
+                          <td>{getPriorityBadge(task.priority)}</td>
+                          <td>{task.owner || '—'}</td>
+                          <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </main>
 
       {/* Task Detail Drawer */}
       {showTaskDrawer && selectedTask && (
         <TaskDetailDrawer
           task={selectedTask}
-          clients={clients}
+          projects={projects}
+          tamUnits={tamUnits}
           storageManager={storageManager}
           session={session}
           onClose={closeTaskDrawer}
@@ -416,7 +417,8 @@ export default function Tasks() {
       {showTaskForm && (
         <TaskFormModal
           task={editingTask}
-          clients={clients}
+          projects={projects}
+          tamUnits={tamUnits}
           storageManager={storageManager}
           session={session}
           onClose={() => {
@@ -432,17 +434,19 @@ export default function Tasks() {
         />
       )}
 
-      <footer className="footer">
-        <div className="container">
-          <p>&copy; 2024 TAM OS. All rights reserved.</p>
+          <footer className="footer">
+            <div className="container">
+              <p>&copy; 2024 TAM OS. All rights reserved.</p>
+            </div>
+          </footer>
         </div>
-      </footer>
+      </div>
     </div>
   )
 }
 
 // Task Detail Drawer Component
-function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onEdit, onDelete, onUpdate }) {
+function TaskDetailDrawer({ task, projects, tamUnits, storageManager, session, onClose, onEdit, onDelete, onUpdate }) {
   const [updates, setUpdates] = useState([])
   const [newUpdate, setNewUpdate] = useState({ body: '', updateType: 'Comment' })
   const [isSaving, setIsSaving] = useState(false)
@@ -463,10 +467,16 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
     }
   }
 
-  const getClientName = (clientId) => {
-    if (!clientId) return 'No Client'
-    const client = clients.find(c => c.id === clientId)
-    return client ? client.name : 'Unknown Client'
+  const getTamUnitName = (tamUnitId) => {
+    if (!tamUnitId) return 'Personal'
+    const unit = tamUnits.find(u => u.id === tamUnitId)
+    return unit ? unit.name : 'Unknown TAM Unit'
+  }
+
+  const getProjectName = (projectId) => {
+    if (!projectId) return 'No Project'
+    const project = projects.find(p => p.id === projectId)
+    return project ? project.name : 'Unknown Project'
   }
 
   const handleAddUpdate = async () => {
@@ -479,8 +489,7 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
         author: session.user?.email || session.user?.name || 'Unknown',
         updateType: newUpdate.updateType,
         body: newUpdate.body,
-        statusAfter: newUpdate.statusAfter || null,
-        ballWithAfter: newUpdate.ballWithAfter || null
+        statusAfter: newUpdate.statusAfter || null
       })
       
       await storageManager.saveTaskUpdate(update)
@@ -502,7 +511,7 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
           <div>
             <h2>{task.title}</h2>
             <p className="task-drawer-meta">
-              {getClientName(task.clientId)} • {task.type} • Owner: {task.owner || 'Unassigned'}
+              {getTamUnitName(task.tamUnitId)} • {getProjectName(task.projectId)} • Owner: {task.owner || 'Unassigned'}
             </p>
           </div>
           <div className="task-drawer-actions">
@@ -517,11 +526,10 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
             <h3>Details</h3>
             <div className="task-details-grid">
               <div><strong>Status:</strong> {task.status}</div>
-              <div><strong>Ball With:</strong> {task.ballWith}</div>
+              <div><strong>Project:</strong> {getProjectName(task.projectId)}</div>
               <div><strong>Priority:</strong> {task.priority}</div>
               <div><strong>Due Date:</strong> {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</div>
-              <div><strong>Next Step:</strong> {task.nextStep || '—'}</div>
-              <div><strong>Manager Attention:</strong> {task.managerAttention ? 'Yes ⚠️' : 'No'}</div>
+              <div><strong>TAM Unit:</strong> {getTamUnitName(task.tamUnitId)}</div>
             </div>
           </div>
 
@@ -529,30 +537,6 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
             <div className="task-drawer-section">
               <h3>Description</h3>
               <p>{task.description}</p>
-            </div>
-          )}
-
-          {task.links && task.links.length > 0 && (
-            <div className="task-drawer-section">
-              <h3>Links</h3>
-              <ul>
-                {task.links.map((link, idx) => (
-                  <li key={idx}>
-                    <a href={link.url} target="_blank" rel="noopener noreferrer">{link.label || link.url}</a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {task.stakeholders && task.stakeholders.length > 0 && (
-            <div className="task-drawer-section">
-              <h3>Stakeholders</h3>
-              <ul>
-                {task.stakeholders.map((stakeholder, idx) => (
-                  <li key={idx}>{stakeholder}</li>
-                ))}
-              </ul>
             </div>
           )}
 
@@ -572,10 +556,9 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
                       </span>
                     </div>
                     <div className="timeline-body">{update.body}</div>
-                    {(update.statusAfter || update.ballWithAfter) && (
+                    {update.statusAfter && (
                       <div className="timeline-changes">
                         {update.statusAfter && <span>Status → {update.statusAfter}</span>}
-                        {update.ballWithAfter && <span>Ball → {update.ballWithAfter}</span>}
                       </div>
                     )}
                   </div>
@@ -613,19 +596,6 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
                   <option value="Done">Done</option>
                 </select>
               )}
-              {newUpdate.updateType === 'Status change' && (
-                <select 
-                  value={newUpdate.ballWithAfter || ''}
-                  onChange={(e) => setNewUpdate({ ...newUpdate, ballWithAfter: e.target.value })}
-                  className="ball-with-select"
-                >
-                  <option value="">Select ball with</option>
-                  <option value="TAM">TAM</option>
-                  <option value="Client">Client</option>
-                  <option value="Internal">Internal</option>
-                  <option value="Vendor">Vendor</option>
-                </select>
-              )}
               <textarea
                 value={newUpdate.body}
                 onChange={(e) => setNewUpdate({ ...newUpdate, body: e.target.value })}
@@ -649,33 +619,26 @@ function TaskDetailDrawer({ task, clients, storageManager, session, onClose, onE
 }
 
 // Task Form Modal Component
-function TaskFormModal({ task, clients, storageManager, session, onClose, onSave, onClientCreated }) {
+function TaskFormModal({ task, projects, tamUnits, storageManager, session, onClose, onSave, onClientCreated }) {
   const [formData, setFormData] = useState({
-    clientId: task?.clientId || '',
+    tamUnitId: task?.tamUnitId || '',
+    projectId: task?.projectId || '',
     title: task?.title || '',
-    type: task?.type || 'Other',
     status: task?.status || 'Not started',
-    ballWith: task?.ballWith || 'TAM',
-    nextStep: task?.nextStep || '',
     dueDate: task?.dueDate || '',
     priority: task?.priority || 'Medium',
     owner: task?.owner || session?.user?.email || '',
-    description: task?.description || '',
-    managerAttention: task?.managerAttention || false,
-    links: task?.links || [],
-    stakeholders: task?.stakeholders || []
+    description: task?.description || ''
   })
-  const [newLink, setNewLink] = useState({ label: '', url: '' })
-  const [newStakeholder, setNewStakeholder] = useState('')
-  const [newClientName, setNewClientName] = useState('')
-  const [showNewClientInput, setShowNewClientInput] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isCreatingClient, setIsCreatingClient] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [showNewProjectInput, setShowNewProjectInput] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!formData.title.trim() || !formData.nextStep.trim()) {
-      alert('Title and Next Step are required')
+    if (!formData.title.trim() || !formData.projectId) {
+      alert('Title and Project are required')
       return
     }
 
@@ -685,7 +648,7 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
       if (task) {
         taskToSave = { ...task, ...formData }
       } else {
-        taskToSave = storageManager.createTask(formData)
+        taskToSave = storageManager.createTask({ ...formData })
       }
       
       await storageManager.saveTask(taskToSave)
@@ -698,58 +661,41 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
     }
   }
 
-  const addLink = () => {
-    if (newLink.url.trim()) {
-      setFormData({
-        ...formData,
-        links: [...formData.links, { label: newLink.label || newLink.url, url: newLink.url }]
-      })
-      setNewLink({ label: '', url: '' })
-    }
-  }
+  const availableProjects = projects.filter((project) => {
+    if (!formData.tamUnitId) return false
+    return project.tamUnitId === formData.tamUnitId
+  })
 
-  const removeLink = (index) => {
-    setFormData({
-      ...formData,
-      links: formData.links.filter((_, i) => i !== index)
-    })
-  }
+  const canCreateProject = formData.tamUnitId
 
-  const addStakeholder = () => {
-    if (newStakeholder.trim()) {
-      setFormData({
-        ...formData,
-        stakeholders: [...formData.stakeholders, newStakeholder]
-      })
-      setNewStakeholder('')
-    }
-  }
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim() || !storageManager || !formData.tamUnitId) return
 
-  const removeStakeholder = (index) => {
-    setFormData({
-      ...formData,
-      stakeholders: formData.stakeholders.filter((_, i) => i !== index)
-    })
-  }
-
-  const handleCreateClient = async () => {
-    if (!newClientName.trim() || !storageManager) return
-    
-    setIsCreatingClient(true)
+    setIsCreatingProject(true)
     try {
-      const client = storageManager.createClient(newClientName.trim())
-      await storageManager.saveClient(client)
-      setFormData({ ...formData, clientId: client.id })
-      setNewClientName('')
-      setShowNewClientInput(false)
+      let isPersonal = false
+
+      const unit = tamUnits.find((u) => u.id === formData.tamUnitId)
+      isPersonal = unit?.name === 'Personal'
+
+      const project = storageManager.createProject({
+        name: newProjectName.trim(),
+        tamUnitId: formData.tamUnitId,
+        isPersonal,
+        dueDate: null
+      })
+      await storageManager.saveProject(project)
+      setFormData({ ...formData, projectId: project.id })
+      setNewProjectName('')
+      setShowNewProjectInput(false)
       if (onClientCreated) {
         onClientCreated()
       }
     } catch (error) {
-      console.error('Error creating client:', error)
-      alert('Error creating client')
+      console.error('Error creating project:', error)
+      alert('Error creating project')
     } finally {
-      setIsCreatingClient(false)
+      setIsCreatingProject(false)
     }
   }
 
@@ -762,57 +708,64 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
         </div>
         <form onSubmit={handleSubmit} className="task-form">
           <div className="form-group">
-            <label>Client *</label>
+            <label>TAM Unit *</label>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <select 
-                value={formData.clientId}
+                value={formData.tamUnitId}
                 onChange={(e) => {
-                  if (e.target.value === 'new') {
-                    setShowNewClientInput(true)
-                  } else {
-                    setFormData({ ...formData, clientId: e.target.value })
-                  }
+                  setFormData({ ...formData, tamUnitId: e.target.value, projectId: '' })
                 }}
-                required={!showNewClientInput}
+                required
                 style={{ flex: 1 }}
               >
-                <option value="">Select Client</option>
-                {clients.map(client => (
-                  <option key={client.id} value={client.id}>{client.name}</option>
+                <option value="">Select TAM Unit</option>
+                {tamUnits.map(unit => (
+                  <option key={unit.id} value={unit.id}>{unit.name}</option>
                 ))}
-                <option value="new">+ Create New Client</option>
               </select>
             </div>
-            {showNewClientInput && (
+          </div>
+
+          <div className="form-group">
+            <label>Project *</label>
+            <select
+              value={formData.projectId}
+              onChange={(e) => {
+                if (e.target.value === 'new') {
+                  setShowNewProjectInput(true)
+                  setFormData({ ...formData, projectId: '' })
+                } else {
+                  setShowNewProjectInput(false)
+                  setFormData({ ...formData, projectId: e.target.value })
+                }
+              }}
+              required={!canCreateProject}
+            >
+              <option value="">Select Project</option>
+              {availableProjects.map(project => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+              <option value="new">+ Create New Project</option>
+            </select>
+            {showNewProjectInput && (
               <div style={{ marginTop: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <input
                   type="text"
-                  placeholder="Client name"
-                  value={newClientName}
-                  onChange={(e) => setNewClientName(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleCreateClient())}
-                  style={{ flex: 1, padding: '8px 12px', border: '2px solid #e1e8ed', borderRadius: '5px' }}
-                  autoFocus
+                  placeholder="New project name"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  style={{ flex: 1 }}
                 />
                 <button
                   type="button"
-                  onClick={handleCreateClient}
-                  disabled={!newClientName.trim() || isCreatingClient}
+                  onClick={handleCreateProject}
+                  disabled={!newProjectName.trim() || isCreatingProject}
                   className="btn btn-primary"
                   style={{ padding: '8px 16px' }}
                 >
-                  {isCreatingClient ? 'Creating...' : 'Create'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowNewClientInput(false)
-                    setNewClientName('')
-                  }}
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 16px' }}
-                >
-                  Cancel
+                  {isCreatingProject ? 'Creating...' : 'Create'}
                 </button>
               </div>
             )}
@@ -830,23 +783,6 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
 
           <div className="form-row">
             <div className="form-group">
-              <label>Task Type *</label>
-              <select 
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                required
-              >
-                <option value="Integration">Integration</option>
-                <option value="Deliverability">Deliverability</option>
-                <option value="Enablement">Enablement</option>
-                <option value="Bug/Issue">Bug/Issue</option>
-                <option value="Launch">Launch</option>
-                <option value="Strategy">Strategy</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            <div className="form-group">
               <label>Status *</label>
               <select 
                 value={formData.status}
@@ -859,22 +795,6 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
                 <option value="Waiting on client">Waiting on client</option>
                 <option value="Waiting on internal">Waiting on internal</option>
                 <option value="Done">Done</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Ball Is With *</label>
-              <select 
-                value={formData.ballWith}
-                onChange={(e) => setFormData({ ...formData, ballWith: e.target.value })}
-                required
-              >
-                <option value="TAM">TAM</option>
-                <option value="Client">Client</option>
-                <option value="Internal">Internal</option>
-                <option value="Vendor">Vendor</option>
               </select>
             </div>
 
@@ -893,17 +813,6 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
                 <option value="Low">Low</option>
               </select>
             </div>
-          </div>
-
-          <div className="form-group">
-            <label>Next Step *</label>
-            <input 
-              type="text"
-              value={formData.nextStep}
-              onChange={(e) => setFormData({ ...formData, nextStep: e.target.value })}
-              placeholder="Short description of next action"
-              required
-            />
           </div>
 
           <div className="form-row">
@@ -928,72 +837,12 @@ function TaskFormModal({ task, clients, storageManager, session, onClose, onSave
           </div>
 
           <div className="form-group">
-            <label>
-              <input 
-                type="checkbox"
-                checked={formData.managerAttention}
-                onChange={(e) => setFormData({ ...formData, managerAttention: e.target.checked })}
-              />
-              Manager Attention Needed
-            </label>
-          </div>
-
-          <div className="form-group">
             <label>Description</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows="4"
             />
-          </div>
-
-          <div className="form-group">
-            <label>Links</label>
-            <div className="links-list">
-              {formData.links.map((link, idx) => (
-                <div key={idx} className="link-item">
-                  <a href={link.url} target="_blank" rel="noopener noreferrer">{link.label}</a>
-                  <button type="button" onClick={() => removeLink(idx)}>×</button>
-                </div>
-              ))}
-            </div>
-            <div className="add-link-form">
-              <input 
-                type="text"
-                placeholder="Label"
-                value={newLink.label}
-                onChange={(e) => setNewLink({ ...newLink, label: e.target.value })}
-              />
-              <input 
-                type="url"
-                placeholder="URL"
-                value={newLink.url}
-                onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
-              />
-              <button type="button" onClick={addLink}>Add Link</button>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Stakeholders</label>
-            <div className="stakeholders-list">
-              {formData.stakeholders.map((stakeholder, idx) => (
-                <div key={idx} className="stakeholder-item">
-                  <span>{stakeholder}</span>
-                  <button type="button" onClick={() => removeStakeholder(idx)}>×</button>
-                </div>
-              ))}
-            </div>
-            <div className="add-stakeholder-form">
-              <input 
-                type="text"
-                placeholder="Stakeholder name/email"
-                value={newStakeholder}
-                onChange={(e) => setNewStakeholder(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addStakeholder())}
-              />
-              <button type="button" onClick={addStakeholder}>Add Stakeholder</button>
-            </div>
           </div>
 
           <div className="form-actions">

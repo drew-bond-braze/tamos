@@ -1,6 +1,7 @@
 import { useSession, signIn, signOut } from "next-auth/react"
 import { useRouter } from "next/router"
 import Link from "next/link"
+import Head from "next/head"
 import { useEffect } from "react"
 
 export default function Home() {
@@ -24,44 +25,53 @@ export default function Home() {
   if (!session) {
     return (
       <div>
-        <nav className="navbar">
-          <div className="nav-container">
-            <div className="nav-logo">
-              <h1>TAM OS</h1>
-            </div>
-          </div>
-        </nav>
-        <main className="main-content">
-          <section className="hero">
-            <div className="hero-content">
-              <h1 className="hero-title">TAM OS Task Tracker</h1>
-              <p className="hero-subtitle">Track tasks and projects per client. Keep managers informed and ownership clear.</p>
-              <div className="hero-actions">
-                <button 
-                  onClick={async () => {
-                    try {
-                      await signIn('google', { callbackUrl: '/' })
-                    } catch (error) {
-                      console.error('Sign in error:', error)
-                      alert('Error signing in. Please check the browser console for details.')
-                    }
-                  }} 
-                  className="btn btn-primary"
-                >
-                  Sign in with Google
-                </button>
+        <Head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        </Head>
+          <div className="app-shell">
+          <nav className="navbar">
+            <div className="nav-container">
+              <div className="nav-logo">
+                <h1>TAM OS</h1>
               </div>
-              <p style={{ marginTop: '20px', fontSize: '0.9rem', opacity: 0.8 }}>
-                Access restricted to @braze.com email addresses
-              </p>
             </div>
-          </section>
-        </main>
-        <footer className="footer">
-          <div className="container">
-            <p>&copy; 2024 TAM OS. All rights reserved.</p>
+          </nav>
+          <div className="app-main">
+            <div className="page-topbar">
+              <button 
+                onClick={async () => {
+                  try {
+                    await signIn('google', { callbackUrl: '/' })
+                  } catch (error) {
+                    console.error('Sign in error:', error)
+                    alert('Error signing in. Please check the browser console for details.')
+                  }
+                }} 
+                className="btn btn-secondary auth-button"
+              >
+                Sign in
+              </button>
+            </div>
+            <main className="main-content">
+              <section className="hero">
+                <div className="hero-content">
+                  <h1 className="hero-title">TAM OS Task Tracker</h1>
+                  <p className="hero-subtitle">Track tasks and projects per client. Keep managers informed and ownership clear.</p>
+                  <p style={{ marginTop: '20px', fontSize: '0.9rem', opacity: 0.8 }}>
+                    Access restricted to @braze.com email addresses
+                  </p>
+                </div>
+              </section>
+            </main>
+            <footer className="footer">
+              <div className="container">
+                <p>&copy; 2024 TAM OS. All rights reserved.</p>
+              </div>
+            </footer>
           </div>
-        </footer>
+        </div>
       </div>
     )
   }
@@ -69,73 +79,146 @@ export default function Home() {
   // User is authenticated - show the app
   return (
     <div>
-      <nav className="navbar">
-        <div className="nav-container">
-          <div className="nav-logo">
-            <h1>TAM OS</h1>
+      <Head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      </Head>
+      <div className="app-shell">
+        <nav className="navbar">
+          <div className="nav-container">
+            <div className="nav-logo">
+              <h1>TAM OS</h1>
+            </div>
+            <div className="nav-menu">
+              <Link href="/" className="nav-link active">My Dashboard</Link>
+              <Link href="/tasks" className="nav-link">My Tasks</Link>
+              <Link href="/projects" className="nav-link">My Projects</Link>
+              <Link href="/tam-units" className="nav-link">My TAM Units</Link>
+            </div>
           </div>
-          <div className="nav-menu">
-            <Link href="/" className="nav-link active">Home</Link>
-            <Link href="/tasks" className="nav-link">Tasks</Link>
-          </div>
-          <div className="nav-user">
-            <span className="user-email">{session.user?.email || session.user?.name}</span>
-            <button 
-              onClick={() => signOut({ callbackUrl: '/' })} 
-              className="btn-logout"
-              title="Sign out"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </nav>
+        </nav>
 
-        <main className="main-content">
-          <section className="hero">
-            <div className="hero-content">
-              <h1 className="hero-title">TAM OS Task Tracker</h1>
-              <p className="hero-subtitle">Track tasks and projects per client. Keep managers informed and ownership clear.</p>
-              <div className="hero-actions">
-                <Link href="/tasks" className="btn btn-primary">View Tasks</Link>
+        <div className="app-main">
+          <main className="main-content">
+            <div className="dashboard-header">
+              <div>
+                <h1>Welcome back, {session.user?.name || 'there'}</h1>
+                <p>You have 3 tasks due today and 2 projects at risk.</p>
+              </div>
+              <div className="dashboard-user">
+                <span>{session.user?.name || session.user?.email}</span>
+                <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                <button
+                  onClick={() => signOut({ callbackUrl: '/' })}
+                  className="btn btn-secondary auth-button"
+                >
+                  Sign out
+                </button>
               </div>
             </div>
-          </section>
 
-          <section className="features">
+            <div className="dashboard-section">
+              <section className="card">
+                <div className="card-title">Upcoming Deadlines</div>
+                <div className="card-list card-list-row">
+                  <div className="card-list-item">
+                    <div className="card-item-title">Yum! US QBR</div>
+                    <div className="card-item-subtitle">Project due in 1 week</div>
+                  </div>
+                  <div className="card-list-item">
+                    <div className="card-item-title">Walmart Onboarding</div>
+                    <div className="card-item-subtitle">Project due in 2 weeks</div>
+                  </div>
+                  <div className="card-list-item">
+                    <div className="card-item-title">Taco Bell Renewal</div>
+                    <div className="card-item-subtitle">Project due in 3 weeks</div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div className="dashboard-section">
+              <section className="card">
+                <div className="card-title">Today's Focus</div>
+                <div className="focus-list">
+                  <label className="focus-item">
+                    <input type="checkbox" />
+                    <span>Finalize Q3 Business Review deck for Yum! US</span>
+                    <span className="pill danger">Due Today</span>
+                  </label>
+                  <label className="focus-item">
+                    <input type="checkbox" />
+                    <span>Send follow-up email to Walmart stakeholders</span>
+                    <span className="pill danger">Due Today</span>
+                  </label>
+                  <label className="focus-item">
+                    <input type="checkbox" />
+                    <span>Prepare agenda for Spark Driver sync</span>
+                    <span className="pill danger">Due Today</span>
+                  </label>
+                  <label className="focus-item">
+                    <input type="checkbox" />
+                    <span>Review BEES Global usage data</span>
+                    <span className="pill neutral">Due Tomorrow</span>
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <div className="dashboard-grid">
+              <section className="card card-wide">
+                <div className="card-title">My TAM Units</div>
+                <div className="units-grid">
+                  <div className="unit-card">
+                    <div>
+                      <div className="card-item-title">Spark Driver</div>
+                      <div className="card-item-subtitle">4 Active Projects</div>
+                    </div>
+                    <span className="pill danger">At Risk</span>
+                  </div>
+                  <div className="unit-card">
+                    <div>
+                      <div className="card-item-title">Walmart</div>
+                      <div className="card-item-subtitle">2 Active Projects</div>
+                    </div>
+                    <span className="pill warning">Needs Attention</span>
+                  </div>
+                  <div className="unit-card">
+                    <div>
+                      <div className="card-item-title">BEES Global</div>
+                      <div className="card-item-subtitle">3 Active Projects</div>
+                    </div>
+                    <span className="pill success">On Track</span>
+                  </div>
+                  <div className="unit-card">
+                    <div>
+                      <div className="card-item-title">Yum! US</div>
+                      <div className="card-item-subtitle">1 Active Project</div>
+                    </div>
+                    <span className="pill success">On Track</span>
+                  </div>
+                </div>
+              </section>
+              <section className="card">
+                <div className="card-title">Recent Activity</div>
+                <div className="card-list">
+                  <div className="card-list-item">Sara assigned Bundle "TAM Sidecar(e) Kirat" <span className="muted">Just now</span></div>
+                  <div className="card-list-item">You completed task "Send follow-up to Taco Bell" <span className="muted">2h ago</span></div>
+                  <div className="card-list-item">You added a new note to "Yum! US" <span className="muted">Yesterday</span></div>
+                  <div className="card-list-item">You updated the status of "Spark Driver" to At Risk <span className="muted">Yesterday</span></div>
+                </div>
+              </section>
+            </div>
+          </main>
+
+          <footer className="footer">
             <div className="container">
-              <h2 className="section-title">Key Features</h2>
-              <div className="features-grid">
-                <div className="feature-card">
-                  <div className="feature-icon">📋</div>
-                  <h3>Task & Project Tracking</h3>
-                  <p>Track tasks per client with clear ownership, status, and next steps. Always know who has the ball.</p>
-                </div>
-                <div className="feature-card">
-                  <div className="feature-icon">💬</div>
-                  <h3>Task Updates & Timeline</h3>
-                  <p>Add comments, status changes, and decisions. Maintain a clear timeline of progress.</p>
-                </div>
-                <div className="feature-card">
-                  <div className="feature-icon">👀</div>
-                  <h3>Manager Visibility</h3>
-                  <p>Managers can stay up to date asynchronously. Flag tasks that need attention.</p>
-                </div>
-                <div className="feature-card">
-                  <div className="feature-icon">🔍</div>
-                  <h3>Smart Views</h3>
-                  <p>Filter by client, status, priority, or view your tasks, items waiting on clients, and more.</p>
-                </div>
-              </div>
+              <p>&copy; 2024 TAM OS. All rights reserved.</p>
             </div>
-          </section>
-        </main>
-
-      <footer className="footer">
-        <div className="container">
-          <p>&copy; 2024 TAM OS. All rights reserved.</p>
+          </footer>
         </div>
-      </footer>
+      </div>
     </div>
   )
 }

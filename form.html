@@ -1,41 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Submit Form - TAMos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <h1>TAMos</h1>
+    <div class="app-shell">
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-logo">
+                    <h1>TAMos</h1>
+                </div>
+                <div class="nav-menu">
+                    <a href="index.html" class="nav-link">Home</a>
+                    <a href="form.html" class="nav-link active">Submit Form</a>
+                    <a href="review.html" class="nav-link">Review Forms</a>
+                </div>
             </div>
-            <div class="nav-menu">
-                <a href="index.html" class="nav-link">Home</a>
-                <a href="form.html" class="nav-link active">Submit Form</a>
-                <a href="review.html" class="nav-link">Review Forms</a>
-            </div>
-        </div>
-    </nav>
+        </nav>
 
-    <main class="main-content">
-        <section class="form-section">
-            <div class="container">
-                <h1 class="page-title">🧾 Technical Account Management - Status Review</h1>
-                <p class="page-subtitle">Please complete all sections below for your Technical Account Management status review.</p>
-                
-                <form id="healthForm" class="health-form">
-                    <!-- Section 1 - General Information -->
-                    <div class="form-section-header">
-                        <h2>Section 1 – General Information</h2>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="email">Email *</label>
-                        <input type="email" id="email" name="email" required>
-                    </div>
+        <div class="app-main">
+            <main class="main-content">
+                <section class="form-section">
+                    <div class="container">
+                        <h1 class="page-title">🧾 Technical Account Management - Status Review</h1>
+                        <p class="page-subtitle">Please complete all sections below for your Technical Account Management status review.</p>
+                        
+                        <form id="healthForm" class="health-form">
+                            <!-- Section 1 - General Information -->
+                            <div class="form-section-header">
+                                <h2>Section 1 – General Information</h2>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="email">Email *</label>
+                                <input type="email" id="email" name="email" required>
+                            </div>
 
                     <div class="form-group">
                         <label for="customerName">Customer Name / Business Unit Name *</label>
@@ -318,20 +323,22 @@
                         <textarea id="finalNotes" name="finalNotes" rows="4" placeholder="Last opportunity to provide any important context."></textarea>
                     </div>
 
-                    <div class="form-actions">
-                        <button type="button" id="saveDraft" class="btn btn-secondary">Save Draft</button>
-                        <button type="submit" class="btn btn-primary">Submit Form</button>
+                            <div class="form-actions">
+                                <button type="button" id="saveDraft" class="btn btn-secondary">Save Draft</button>
+                                <button type="submit" class="btn btn-primary">Submit Form</button>
+                            </div>
+                        </form>
                     </div>
-                </form>
-            </div>
-        </section>
-    </main>
+                </section>
+            </main>
 
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2024 TAMos. All rights reserved.</p>
+            <footer class="footer">
+                <div class="container">
+                    <p>&copy; 2024 TAMos. All rights reserved.</p>
+                </div>
+            </footer>
         </div>
-    </footer>
+    </div>
 
     <script src="privacy-manager.js"></script>
     <script src="storage-manager.js"></script>

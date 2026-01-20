@@ -1,69 +1,82 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Review Forms - TAMos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <div class="nav-logo">
-                <h1>TAMos</h1>
+    <div class="app-shell">
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-logo">
+                    <h1>TAMos</h1>
+                </div>
+                <div class="nav-menu">
+                    <a href="index.html" class="nav-link">Home</a>
+                    <a href="form.html" class="nav-link">Submit Form</a>
+                    <a href="review.html" class="nav-link active">Review Forms</a>
+                </div>
             </div>
-            <div class="nav-menu">
-                <a href="index.html" class="nav-link">Home</a>
-                <a href="form.html" class="nav-link">Submit Form</a>
-                <a href="review.html" class="nav-link active">Review Forms</a>
-            </div>
+        </nav>
+
+        <div class="app-main">
+            <main class="main-content">
+                <section class="review-section">
+                    <div class="container">
+                        <h1 class="page-title">Form Review Dashboard</h1>
+                        <p class="page-subtitle">Review and analyze previously submitted client health assessment forms.</p>
+                        
+                        <div class="dashboard-stats">
+                            <div class="stat-card">
+                                <div class="stat-number" id="totalForms">0</div>
+                                <div class="stat-label">Total Forms</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" id="completedForms">0</div>
+                                <div class="stat-label">Completed Forms</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number" id="draftForms">0</div>
+                                <div class="stat-label">Draft Forms</div>
+                            </div>
+                        </div>
+
+                        <div class="forms-list">
+                            <div class="list-header">
+                                <h2>Forms & Drafts</h2>
+                                <div class="filter-controls">
+                                    <select id="statusFilter">
+                                        <option value="all">All Forms</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="draft">Drafts</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div id="formsList" class="forms-grid">
+                                <!-- Forms will be dynamically loaded here -->
+                                <div class="no-forms-message">
+                                    <p>No forms have been submitted yet.</p>
+                                    <a href="form.html" class="btn btn-primary">Create First Form</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <footer class="footer">
+                <div class="container">
+                    <p>&copy; 2024 TAMos. All rights reserved.</p>
+                </div>
+            </footer>
         </div>
-    </nav>
-
-    <main class="main-content">
-        <section class="review-section">
-            <div class="container">
-                <h1 class="page-title">Form Review Dashboard</h1>
-                <p class="page-subtitle">Review and analyze previously submitted client health assessment forms.</p>
-                
-                <div class="dashboard-stats">
-                    <div class="stat-card">
-                        <div class="stat-number" id="totalForms">0</div>
-                        <div class="stat-label">Total Forms</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="completedForms">0</div>
-                        <div class="stat-label">Completed Forms</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="draftForms">0</div>
-                        <div class="stat-label">Draft Forms</div>
-                    </div>
-                </div>
-
-                <div class="forms-list">
-                    <div class="list-header">
-                        <h2>Forms & Drafts</h2>
-                        <div class="filter-controls">
-                            <select id="statusFilter">
-                                <option value="all">All Forms</option>
-                                <option value="completed">Completed</option>
-                                <option value="draft">Drafts</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div id="formsList" class="forms-grid">
-                        <!-- Forms will be dynamically loaded here -->
-                        <div class="no-forms-message">
-                            <p>No forms have been submitted yet.</p>
-                            <a href="form.html" class="btn btn-primary">Create First Form</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
+    </div>
 
     <!-- Modal for viewing form details -->
     <div id="formModal" class="modal">
@@ -81,12 +94,6 @@
             </div>
         </div>
     </div>
-
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2024 TAMos. All rights reserved.</p>
-        </div>
-    </footer>
 
     <script src="privacy-manager.js"></script>
     <script src="storage-manager.js"></script>

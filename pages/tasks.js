@@ -878,14 +878,14 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
     }
   }
 
-  const syncTaskToSheet = async (taskRecord) => {
+  const syncTaskToSheet = async (taskRecord, { method = 'POST' } = {}) => {
     if (!resolvedUserId) {
       console.warn('No user id available for Google Sheets sync')
       return { skipped: true }
     }
 
     const response = await fetch('/api/google_sheets/tasks', {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildSheetTaskPayload(taskRecord))
     })
@@ -925,13 +925,14 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       }
 
       const savedTask = await storageManager.saveTask(taskToSave)
-      if (!task) {
-        try {
-          await syncTaskToSheet(savedTask)
-        } catch (error) {
-          console.error('Error syncing task to Google Sheets:', error)
-          alert('Task saved locally, but failed to sync to Google Sheets.')
-        }
+      try {
+        await syncTaskToSheet(savedTask, { method: task ? 'PUT' : 'POST' })
+      } catch (error) {
+        console.error('Error syncing task to Google Sheets:', error)
+        alert(task
+          ? 'Task updated locally, but failed to sync to Google Sheets.'
+          : 'Task saved locally, but failed to sync to Google Sheets.'
+        )
       }
       onSave()
     } catch (error) {

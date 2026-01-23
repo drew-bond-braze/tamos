@@ -9,6 +9,31 @@ if (typeof window !== "undefined") {
   StorageManager = StorageManagerModule.default || StorageManagerModule.StorageManager || StorageManagerModule
 }
 
+const buildSheetCacheKey = (userId) => `tamos_sheet_cache_${userId}`
+
+const readSheetCache = (userId) => {
+  if (typeof window === "undefined" || !userId) return null
+  try {
+    const cached = localStorage.getItem(buildSheetCacheKey(userId))
+    return cached ? JSON.parse(cached) : null
+  } catch (error) {
+    console.error('Error reading TAM units cache:', error)
+    return null
+  }
+}
+
+const writeSheetCache = (userId, data) => {
+  if (typeof window === "undefined" || !userId) return
+  try {
+    localStorage.setItem(
+      buildSheetCacheKey(userId),
+      JSON.stringify({ ...data, cachedAt: new Date().toISOString() })
+    )
+  } catch (error) {
+    console.error('Error writing TAM units cache:', error)
+  }
+}
+
 export default function TamUnits() {
   const { data: session, status } = useSession()
   const [storageManager, setStorageManager] = useState(null)
@@ -34,71 +59,66 @@ export default function TamUnits() {
     if (typeof window !== "undefined" && StorageManager) {
       const sm = new StorageManager()
       setStorageManager(sm)
-      loadData(sm)
     }
   }, [])
 
-  const loadData = async () => {
+  const fetchSheetData = async (url, label) => {
     try {
-      // const [tamUnitsData, projectsData, tasksData] = await Promise.all([
-      //   sm.getTamUnits(),
-      //   sm.getProjects(),
-      //   sm.getTasks()
-      // ])
-      let sheetAccounts = [];
-      let sheetProjects = [];
-      let sheetTasks = [];
-      if (session?.user?.id) {
-        try {
-          const response = await fetch(`/api/google_sheets/accounts?userId=${encodeURIComponent(session?.user?.id)}`, {
-            method: 'GET'
-          });
-
-          if (response.ok) {
-            sheetAccounts = await response.json();
-          } else {
-            console.error('Failed to fetch accounts:', response.statusText);
-          }
-        } catch (err) {
-          console.error('Network error fetching sheet accounts:', err);
-        }
-
-        try {
-          const response = await fetch(`/api/google_sheets/projects?userId=${encodeURIComponent(session?.user?.id)}`, {
-            method: 'GET'
-          });
-
-          if (response.ok) {
-            sheetProjects = await response.json();
-          } else {
-            console.error('Failed to fetch projects:', response.statusText);
-          }
-        } catch (err) {
-          console.error('Network error fetching sheet projects:', err);
-        }
-
-        try {
-          const response = await fetch(`/api/google_sheets/tasks?userId=${encodeURIComponent(session?.user?.id)}`, {
-            method: 'GET'
-          });
-
-          if (response.ok) {
-            sheetTasks = await response.json();
-          } else {
-            console.error('Failed to fetch tasks:', response.statusText);
-          }
-        } catch (err) {
-          console.error('Network error fetching sheet tasks:', err);
-        }
+      const response = await fetch(url, { method: 'GET' })
+      if (!response.ok) {
+        console.error(`Failed to fetch ${label}:`, response.statusText)
+        return null
       }
-  
-      setTamUnits(sheetAccounts)
-      setProjects(sheetProjects)
-      setTasks(sheetTasks)
+      return await response.json()
+    } catch (error) {
+      console.error(`Network error fetching ${label}:`, error)
+      return null
+    }
+  }
+
+  const loadData = async (userId, cachedData = {}) => {
+    try {
+      if (!userId) return
+
+      const encodedUserId = encodeURIComponent(userId)
+      const [sheetAccounts, sheetProjects, sheetTasks] = await Promise.all([
+        fetchSheetData(`/api/google_sheets/accounts?userId=${encodedUserId}`, 'accounts'),
+        fetchSheetData(`/api/google_sheets/projects?userId=${encodedUserId}`, 'projects'),
+        fetchSheetData(`/api/google_sheets/tasks?userId=${encodedUserId}`, 'tasks')
+      ])
+
+      const nextTamUnits = sheetAccounts ?? cachedData.tamUnits ?? []
+      const nextProjects = sheetProjects ?? cachedData.projects ?? []
+      const nextTasks = sheetTasks ?? cachedData.tasks ?? []
+
+      setTamUnits(nextTamUnits)
+      setProjects(nextProjects)
+      setTasks(nextTasks)
+
+      writeSheetCache(userId, {
+        tamUnits: nextTamUnits,
+        projects: nextProjects,
+        tasks: nextTasks
+      })
     } catch (error) {
       console.error('Error loading data:', error)
     }
   }
+
+  useEffect(() => {
+    if (status !== "authenticated") return
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const cached = readSheetCache(userId)
+    if (cached) {
+      setTamUnits(cached.tamUnits || [])
+      setProjects(cached.projects || [])
+      setTasks(cached.tasks || [])
+    }
+
+    loadData(userId, cached)
+  }, [status, session?.user?.id])
 
   const toggleUnit = (unitId) => {
     setExpandedUnits((prev) => ({
@@ -115,9 +135,6 @@ export default function TamUnits() {
   }
 
   const getUnitProjects = (unit) => {
-    if (unit.name === 'Personal') {
-      return projects.filter((project) => project.accountId === unit.id)
-    }
     return projects.filter((project) => project.accountId === unit.id)
   }
 
@@ -239,7 +256,7 @@ export default function TamUnits() {
                                       className="btn btn-secondary btn-small"
                                       onClick={() => toggleProject(project.id)}
                                     >
-                                      {expandedProjects[project.accountId] ? 'Hide tasks' : 'View tasks'}
+                                      {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
                                     </button>
                                   </div>
                                   {expandedProjects[project.id] && (

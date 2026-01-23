@@ -45,6 +45,57 @@ const isCacheFresh = (cached) => {
   return Date.now() - cachedAt < CACHE_TTL_MS
 }
 
+const normalizeTaskRecord = (task) => {
+  if (!task) return task
+  const normalized = { ...task }
+
+  const accountId = normalized.accountId || normalized.tamUnitId || normalized.account_id
+  if (accountId && !normalized.accountId) normalized.accountId = accountId
+
+  const projectId = normalized.projectId || normalized.project_id || normalized.projectID || normalized.project
+  if (projectId && !normalized.projectId) normalized.projectId = projectId
+
+  const title = normalized.title || normalized.name || normalized.taskName || normalized.task || normalized.summary
+  if (title && !normalized.title) normalized.title = title
+
+  const description = normalized.description || normalized.details || normalized.nextStep || normalized.notes
+  if (description && !normalized.description) normalized.description = description
+
+  const dueDate = normalized.dueDate || normalized.date || normalized.targetDate || normalized.targetdate
+  if (dueDate && !normalized.dueDate) normalized.dueDate = dueDate
+
+  const userId = normalized.userId || normalized.user_id || normalized.ownerId || normalized.owner_id
+  if (userId && !normalized.userId) normalized.userId = userId
+  if (userId && !normalized.user_id) normalized.user_id = userId
+
+  const owner = normalized.owner || normalized.userEmail || normalized.user_email || normalized.assignee || normalized.assignedTo
+  if (owner && !normalized.owner) normalized.owner = owner
+
+  const createdAt = normalized.createdAt || normalized.created_at || normalized.createddate || normalized.createdDate
+  if (createdAt && !normalized.createdAt) normalized.createdAt = createdAt
+
+  const updatedAt = normalized.updatedAt || normalized.updated_at || normalized.updateddate || normalized.updatedDate || normalized.lastUpdateAt
+  if (updatedAt && !normalized.updatedAt) normalized.updatedAt = updatedAt
+  if (updatedAt && !normalized.lastUpdateAt) normalized.lastUpdateAt = updatedAt
+
+  const accountName = normalized.accountName || normalized.tamUnitName || normalized.account_name
+  if (accountName && !normalized.accountName) normalized.accountName = accountName
+
+  const projectName = normalized.projectName || normalized.project_name
+  if (projectName && !normalized.projectName) normalized.projectName = projectName
+
+  if (typeof normalized.completed === 'undefined' && normalized.status) {
+    normalized.completed = normalized.status === 'Done'
+  }
+
+  if (!normalized.lastUpdateSummary) {
+    const summary = normalized.nextStep || normalized.details
+    if (summary) normalized.lastUpdateSummary = summary
+  }
+
+  return normalized
+}
+
 export default function Tasks() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -107,14 +158,8 @@ export default function Tasks() {
       const nextProjects = summary?.projects ?? cachedData.projects ?? localProjects ?? []
       const sheetTasks = summary?.tasks ?? cachedData.tasks ?? []
       const combinedTasks = [...(localTasks || []), ...(sheetTasks || [])]
-      const normalizedTasks = combinedTasks.map((task) => {
-        if (!task || task.accountId || !task.tamUnitId) {
-          return task;
-        }
-        const { tamUnitId, ...rest } = task;
-        return { ...rest, accountId: tamUnitId };
-      });
-      const uniqueTasks = Array.from(new Map(normalizedTasks.map(t => [t.id, t])).values());
+      const normalizedTasks = combinedTasks.map(normalizeTaskRecord).filter(Boolean)
+      const uniqueTasks = Array.from(new Map(normalizedTasks.map(t => [t.id, t])).values())
 
       setTasks(uniqueTasks)
       setClients(clientsData)
@@ -473,14 +518,14 @@ export default function Tasks() {
                           style={{ cursor: 'pointer' }}
                         >
                           <td>{task.accountName || getAccountName(task.accountId || task.tamUnitId)}</td>
-                          <td>{getProjectName(task.projectId)}</td>
+                          <td>{task.projectName || getProjectName(task.projectId)}</td>
                           <td className="task-title-cell">
-                            <strong>{task.title}</strong>
+                            <strong>{task.title || task.name || task.taskName || task.task || 'Untitled task'}</strong>
                           </td>
                           <td>{getStatusBadge(task.status)}</td>
-                          <td>{formatDate(task.dueDate)}</td>
+                          <td>{formatDate(task.dueDate || task.date)}</td>
                           <td>{getPriorityBadge(task.priority)}</td>
-                          <td>{task.owner || '—'}</td>
+                          <td>{task.owner || task.userEmail || '—'}</td>
                           <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
                         </tr>
                       ))
@@ -584,6 +629,9 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
   }
 
   const accountLabel = task.accountName || getAccountName(task.accountId || task.tamUnitId)
+  const projectLabel = task.projectName || getProjectName(task.projectId)
+  const taskTitle = task.title || task.name || task.taskName || task.task || 'Untitled task'
+  const taskDescription = task.description || task.details || task.nextStep
 
   const handleAddUpdate = async () => {
     if (!newUpdate.body.trim() || !storageManager) return
@@ -615,9 +663,9 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
       <div className="task-drawer" onClick={(e) => e.stopPropagation()}>
         <div className="task-drawer-header">
           <div>
-            <h2>{task.title}</h2>
+            <h2>{taskTitle}</h2>
             <p className="task-drawer-meta">
-              {accountLabel} • {getProjectName(task.projectId)} • Owner: {task.owner || 'Unassigned'}
+              {accountLabel} • {projectLabel} • Owner: {task.owner || task.userEmail || 'Unassigned'}
             </p>
           </div>
           <div className="task-drawer-actions">
@@ -632,17 +680,17 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
             <h3>Details</h3>
             <div className="task-details-grid">
               <div><strong>Status:</strong> {task.status}</div>
-              <div><strong>Project:</strong> {getProjectName(task.projectId)}</div>
+              <div><strong>Project:</strong> {projectLabel}</div>
               <div><strong>Priority:</strong> {task.priority}</div>
-              <div><strong>Due Date:</strong> {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</div>
+              <div><strong>Due Date:</strong> {task.dueDate || task.date ? new Date(task.dueDate || task.date).toLocaleDateString() : '—'}</div>
               <div><strong>Account:</strong> {accountLabel}</div>
             </div>
           </div>
 
-          {task.description && (
+          {taskDescription && (
             <div className="task-drawer-section">
               <h3>Description</h3>
-              <p>{task.description}</p>
+              <p>{taskDescription}</p>
             </div>
           )}
 
@@ -729,12 +777,12 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
   const [formData, setFormData] = useState({
     accountId: task?.accountId || task?.tamUnitId || '',
     projectId: task?.projectId || '',
-    title: task?.title || '',
+    title: task?.title || task?.name || '',
     status: task?.status || 'Not started',
-    dueDate: task?.dueDate || '',
+    dueDate: task?.dueDate || task?.date || '',
     priority: task?.priority || 'Medium',
-    owner: task?.owner || session?.user?.email || '',
-    description: task?.description || ''
+    owner: task?.owner || task?.userEmail || session?.user?.email || '',
+    description: task?.description || task?.details || task?.nextStep || ''
   })
   const [isSaving, setIsSaving] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
@@ -754,28 +802,80 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
     return project?.name || ''
   }
 
+  const getUserNameParts = () => {
+    let firstName =
+      session?.user?.userFirstName ||
+      session?.user?.firstName ||
+      session?.user?.first_name ||
+      session?.user?.given_name ||
+      ''
+    let lastName =
+      session?.user?.userLastName ||
+      session?.user?.lastName ||
+      session?.user?.last_name ||
+      session?.user?.family_name ||
+      ''
+
+    if ((!firstName || !lastName) && session?.user?.name) {
+      const parts = session.user.name.trim().split(/\s+/)
+      if (!firstName && parts.length >= 1) {
+        firstName = parts[0]
+      }
+      if (!lastName && parts.length >= 2) {
+        lastName = parts.slice(1).join(' ')
+      }
+    }
+
+    return { firstName, lastName }
+  }
+
   const buildSheetTaskPayload = (taskRecord) => {
     const accountId = taskRecord.accountId || taskRecord.tamUnitId || formData.accountId || ''
     const projectId = taskRecord.projectId || formData.projectId || ''
     const accountName = taskRecord.accountName || getAccountName(accountId)
     const projectName = taskRecord.projectName || getProjectName(projectId)
+    const { firstName, lastName } = getUserNameParts()
+    const name = taskRecord.name || taskRecord.title || formData.title || ''
+    const details = taskRecord.details || taskRecord.description || formData.description || ''
+    const nextStep =
+      taskRecord.nextStep ||
+      taskRecord.lastUpdateSummary ||
+      taskRecord.description ||
+      taskRecord.details ||
+      ''
+    const dueDate = taskRecord.dueDate || taskRecord.date || formData.dueDate || ''
+    const createdAt = taskRecord.createdAt || new Date().toISOString()
+    const updatedAt = taskRecord.updatedAt || createdAt
+    const completed =
+      typeof taskRecord.completed === 'boolean'
+        ? taskRecord.completed
+        : (taskRecord.status || formData.status) === 'Done'
 
-    const payload = { ...taskRecord }
-
-    if (accountId) payload.accountId = accountId
-    if (projectId) payload.projectId = projectId
-    if (resolvedUserId) {
-      payload.userId = resolvedUserId
-      payload.user_id = resolvedUserId
+    return {
+      ...taskRecord,
+      id: taskRecord.id,
+      name,
+      details,
+      category: taskRecord.category || '',
+      iniative: taskRecord.iniative || taskRecord.initiative || '',
+      priority: taskRecord.priority || formData.priority || '',
+      nextStep,
+      status: taskRecord.status || formData.status || '',
+      accountName,
+      accountId,
+      projectId,
+      date: dueDate,
+      userId: resolvedUserId || taskRecord.userId || taskRecord.user_id || '',
+      user_id: resolvedUserId || taskRecord.userId || taskRecord.user_id || '',
+      userEmail: session?.user?.email || taskRecord.userEmail || taskRecord.user_email || '',
+      user_email: session?.user?.email || taskRecord.userEmail || taskRecord.user_email || '',
+      userFirstName: firstName || taskRecord.userFirstName || taskRecord.user_first_name || '',
+      userLastName: lastName || taskRecord.userLastName || taskRecord.user_last_name || '',
+      completed,
+      createdAt,
+      updatedAt,
+      updatedUserId: resolvedUserId || taskRecord.updatedUserId || ''
     }
-    if (session?.user?.email) {
-      payload.userEmail = session.user.email
-      payload.user_email = session.user.email
-    }
-    if (accountName) payload.accountName = accountName
-    if (projectName) payload.projectName = projectName
-
-    return payload
   }
 
   const syncTaskToSheet = async (taskRecord) => {

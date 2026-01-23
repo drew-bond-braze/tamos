@@ -39,11 +39,11 @@ export default function Projects() {
   const [storageManager, setStorageManager] = useState(null)
   const [projects, setProjects] = useState([])
   const [tasks, setTasks] = useState([])
-  const [tamUnits, setTamUnits] = useState([])
+  const [accounts, setAccounts] = useState([])
   const [expandedProjects, setExpandedProjects] = useState({})
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
-  const [newProjectTamUnit, setNewProjectTamUnit] = useState('')
+  const [newProjectAccount, setNewProjectAccount] = useState('')
   const [newProjectDueDate, setNewProjectDueDate] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
 
@@ -81,14 +81,14 @@ export default function Projects() {
 
       const nextProjects = sheetProjects ?? cachedData.projects ?? []
       const nextTasks = sheetTasks ?? cachedData.tasks ?? []
-      const nextAccounts = sheetAccounts ?? cachedData.tamUnits ?? []
+      const nextAccounts = sheetAccounts ?? cachedData.accounts ?? cachedData.tamUnits ?? []
 
       setProjects(nextProjects)
       setTasks(nextTasks)
-      setTamUnits(nextAccounts)
+      setAccounts(nextAccounts)
 
       writeSheetCache(userId, {
-        tamUnits: nextAccounts,
+        accounts: nextAccounts,
         projects: nextProjects,
         tasks: nextTasks
       })
@@ -106,7 +106,7 @@ export default function Projects() {
     if (cached) {
       setProjects(cached.projects || [])
       setTasks(cached.tasks || [])
-      setTamUnits(cached.tamUnits || [])
+      setAccounts(cached.accounts || cached.tamUnits || [])
     }
 
     loadData(userId, cached)
@@ -119,10 +119,11 @@ export default function Projects() {
     }))
   }
 
-  const getTamUnitName = (tamUnitId) => {
-    if (!tamUnitId) return 'Personal'
-    const unit = tamUnits.find((u) => u.id === tamUnitId)
-    return unit ? unit.name : 'Unknown Account'
+  const getAccountName = (accountId) => {
+    if (!accountId) return 'Personal'
+    const account = accounts.find((u) => u.id === accountId)
+    if (!account) return 'Unknown Account'
+    return account.accountName || account.name || 'Unknown Account'
   }
 
   const getProjectTasks = (projectId) => {
@@ -133,25 +134,26 @@ export default function Projects() {
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim() || !storageManager) return
-    if (!newProjectTamUnit) {
+    if (!newProjectAccount) {
       alert('Select an account for this project')
       return
     }
 
     setIsCreatingProject(true)
     try {
-      const unit = tamUnits.find((u) => u.id === newProjectTamUnit)
-      const isPersonal = unit?.name === 'Personal'
+      const account = accounts.find((u) => u.id === newProjectAccount)
+      const accountName = account?.accountName || account?.name
+      const isPersonal = accountName === 'Personal'
 
       const project = storageManager.createProject({
         name: newProjectName.trim(),
-        tamUnitId: newProjectTamUnit,
+        accountId: newProjectAccount,
         isPersonal,
         dueDate: newProjectDueDate || null
       })
       await storageManager.saveProject(project)
       setNewProjectName('')
-      setNewProjectTamUnit('')
+      setNewProjectAccount('')
       setNewProjectDueDate('')
       setShowNewProject(false)
       if (session?.user?.id) {
@@ -198,7 +200,7 @@ export default function Projects() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link active">My Projects</Link>
-              <Link href="/tam-units" className="nav-link">My Accounts</Link>
+              <Link href="/accounts" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>
@@ -251,12 +253,14 @@ export default function Projects() {
                       <div className="form-group">
                         <label>Account *</label>
                         <select
-                          value={newProjectTamUnit}
-                          onChange={(e) => setNewProjectTamUnit(e.target.value)}
+                          value={newProjectAccount}
+                          onChange={(e) => setNewProjectAccount(e.target.value)}
                         >
                           <option value="">Select Account</option>
-                          {tamUnits.map((unit) => (
-                            <option key={unit.id} value={unit.id}>{unit.name}</option>
+                          {accounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.accountName || account.name}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -297,7 +301,9 @@ export default function Projects() {
                       <div className="disclosure-row">
                         <div>
                           <div className="card-item-title">{project.name}</div>
-                          <div className="disclosure-meta">{getTamUnitName(project.tamUnitId)} • {projectTasks.length} tasks</div>
+                          <div className="disclosure-meta">
+                            {getAccountName(project.accountId || project.tamUnitId)} • {projectTasks.length} tasks
+                          </div>
                         </div>
                         <button
                           type="button"

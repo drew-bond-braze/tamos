@@ -94,7 +94,7 @@ export default function Home() {
               <Link href="/" className="nav-link active">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/tam-units" className="nav-link">My Accounts</Link>
+              <Link href="/accounts" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>

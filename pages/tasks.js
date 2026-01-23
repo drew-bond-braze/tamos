@@ -45,6 +45,51 @@ const isCacheFresh = (cached) => {
   return Date.now() - cachedAt < CACHE_TTL_MS
 }
 
+const getInitials = (name) => {
+  if (!name || name === 'Unassigned') return '?'
+  const parts = String(name).trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase()
+}
+
+const getOwnerDisplayName = (task, session) => {
+  const firstName = task?.userFirstName || task?.user_first_name || ''
+  const lastName = task?.userLastName || task?.user_last_name || ''
+  if (firstName) return firstName
+  if (lastName) return lastName
+
+  if (task?.owner) {
+    return task.owner.includes('@') ? task.owner.split('@')[0] : task.owner
+  }
+
+  if (task?.userEmail || task?.user_email) {
+    const email = task.userEmail || task.user_email
+    return email.includes('@') ? email.split('@')[0] : email
+  }
+
+  if (session?.user?.name) {
+    return session.user.name.split(/\s+/)[0]
+  }
+
+  return 'Unassigned'
+}
+
+const getOwnerProfile = (task, session) => {
+  const name = getOwnerDisplayName(task, session)
+  const sessionEmail = session?.user?.email
+  const sessionUserId = session?.user?.id
+  const matchesSession =
+    (sessionUserId && (task?.userId === sessionUserId || task?.user_id === sessionUserId)) ||
+    (sessionEmail && (task?.userEmail === sessionEmail || task?.user_email === sessionEmail))
+
+  return {
+    name,
+    avatarUrl: matchesSession ? session?.user?.image : null,
+    initials: getInitials(name)
+  }
+}
+
 const normalizeTaskRecord = (task) => {
   if (!task) return task
   const normalized = { ...task }
@@ -73,6 +118,15 @@ const normalizeTaskRecord = (task) => {
 
   const owner = normalized.owner || normalized.userEmail || normalized.user_email || normalized.assignee || normalized.assignedTo
   if (owner && !normalized.owner) normalized.owner = owner
+
+  const firstName = normalized.userFirstName || normalized.user_first_name || ''
+  const lastName = normalized.userLastName || normalized.user_last_name || ''
+  if ((firstName || lastName) && (!normalized.owner || normalized.owner.includes('@'))) {
+    normalized.owner = firstName || lastName
+  }
+  if (!normalized.owner && normalized.userEmail) {
+    normalized.owner = normalized.userEmail.split('@')[0]
+  }
 
   const createdAt = normalized.createdAt || normalized.created_at || normalized.createddate || normalized.createdDate
   if (createdAt && !normalized.createdAt) normalized.createdAt = createdAt
@@ -513,25 +567,39 @@ export default function Tasks() {
                         </td>
                       </tr>
                     ) : (
-                      filteredTasks.map(task => (
-                        <tr 
-                          key={task.id} 
-                          className="task-row"
-                          onClick={() => openTaskDetail(task)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <td>{task.accountName || getAccountName(task.accountId || task.tamUnitId)}</td>
-                          <td>{task.projectName || getProjectName(task.projectId)}</td>
-                          <td className="task-title-cell">
-                            <strong>{task.title || task.name || task.taskName || task.task || 'Untitled task'}</strong>
-                          </td>
-                          <td>{getStatusBadge(task.status)}</td>
-                          <td>{formatDate(task.dueDate || task.dueAt || task.date)}</td>
-                          <td>{getPriorityBadge(task.priority)}</td>
-                          <td>{task.owner || task.userEmail || '—'}</td>
-                          <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
-                        </tr>
-                      ))
+                      filteredTasks.map(task => {
+                        const ownerProfile = getOwnerProfile(task, session)
+                        return (
+                          <tr 
+                            key={task.id} 
+                            className="task-row"
+                            onClick={() => openTaskDetail(task)}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            <td>{task.accountName || getAccountName(task.accountId || task.tamUnitId)}</td>
+                            <td>{task.projectName || getProjectName(task.projectId)}</td>
+                            <td className="task-title-cell">
+                              <strong>{task.title || task.name || task.taskName || task.task || 'Untitled task'}</strong>
+                            </td>
+                            <td>{getStatusBadge(task.status)}</td>
+                            <td>{formatDate(task.dueDate || task.dueAt || task.date)}</td>
+                            <td>{getPriorityBadge(task.priority)}</td>
+                            <td>
+                              <div className="owner-cell">
+                                <span className="owner-avatar">
+                                  {ownerProfile.avatarUrl ? (
+                                    <img src={ownerProfile.avatarUrl} alt={`${ownerProfile.name} avatar`} />
+                                  ) : (
+                                    <span className="owner-initials">{ownerProfile.initials}</span>
+                                  )}
+                                </span>
+                                <span className="owner-name">{ownerProfile.name}</span>
+                              </div>
+                            </td>
+                            <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
+                          </tr>
+                        )
+                      })
                     )}
                   </tbody>
                 </table>
@@ -635,6 +703,7 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
   const projectLabel = task.projectName || getProjectName(task.projectId)
   const taskTitle = task.title || task.name || task.taskName || task.task || 'Untitled task'
   const taskDescription = task.description || task.details || task.nextStep
+  const ownerProfile = getOwnerProfile(task, session)
 
   const handleAddUpdate = async () => {
     if (!newUpdate.body.trim() || !storageManager) return
@@ -666,9 +735,18 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
       <div className="task-drawer" onClick={(e) => e.stopPropagation()}>
         <div className="task-drawer-header">
           <div>
-            <h2>{taskTitle}</h2>
+            <div className="task-drawer-title">
+              <span className="owner-avatar">
+                {ownerProfile.avatarUrl ? (
+                  <img src={ownerProfile.avatarUrl} alt={`${ownerProfile.name} avatar`} />
+                ) : (
+                  <span className="owner-initials">{ownerProfile.initials}</span>
+                )}
+              </span>
+              <h2>{taskTitle}</h2>
+            </div>
             <p className="task-drawer-meta">
-              {accountLabel} • {projectLabel} • Owner: {task.owner || task.userEmail || 'Unassigned'}
+              {accountLabel} • {projectLabel} • Owner: {ownerProfile.name}
             </p>
           </div>
           <div className="task-drawer-actions">
@@ -777,34 +855,6 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
 
 // Task Form Modal Component
 function TaskFormModal({ task, projects, accounts, storageManager, session, onClose, onSave, onClientCreated }) {
-  const [formData, setFormData] = useState({
-    accountId: task?.accountId || task?.tamUnitId || '',
-    projectId: task?.projectId || '',
-    title: task?.title || task?.name || '',
-    status: task?.status || 'Not started',
-    dueDate: task?.dueDate || task?.dueAt || task?.date || '',
-    priority: task?.priority || 'Medium',
-    owner: task?.owner || task?.userEmail || session?.user?.email || '',
-    description: task?.description || task?.details || task?.nextStep || ''
-  })
-  const [isSaving, setIsSaving] = useState(false)
-  const [newProjectName, setNewProjectName] = useState('')
-  const [isCreatingProject, setIsCreatingProject] = useState(false)
-  const [showNewProjectInput, setShowNewProjectInput] = useState(false)
-  const resolvedUserId = session?.user?.id || session?.user?.userId || session?.user?.user_id || task?.userId || task?.user_id || ''
-
-  const getAccountName = (accountId) => {
-    if (!accountId) return ''
-    const account = accounts.find((u) => u.id === accountId)
-    return account?.accountName || account?.name || ''
-  }
-
-  const getProjectName = (projectId) => {
-    if (!projectId) return ''
-    const project = projects.find((p) => p.id === projectId)
-    return project?.name || ''
-  }
-
   const getUserNameParts = () => {
     let firstName =
       session?.user?.userFirstName ||
@@ -830,6 +880,45 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
     }
 
     return { firstName, lastName }
+  }
+
+  const resolveOwnerName = () => {
+    if (task?.owner && !task.owner.includes('@')) return task.owner
+    if (task?.userFirstName) return task.userFirstName
+    if (task?.owner) return task.owner.split('@')[0]
+    if (task?.userEmail) return task.userEmail.split('@')[0]
+    const { firstName } = getUserNameParts()
+    if (firstName) return firstName
+    if (session?.user?.email) return session.user.email.split('@')[0]
+    return ''
+  }
+
+  const [formData, setFormData] = useState({
+    accountId: task?.accountId || task?.tamUnitId || '',
+    projectId: task?.projectId || '',
+    title: task?.title || task?.name || '',
+    status: task?.status || 'Not started',
+    dueDate: task?.dueDate || task?.dueAt || task?.date || '',
+    priority: task?.priority || 'Medium',
+    owner: resolveOwnerName(),
+    description: task?.description || task?.details || task?.nextStep || ''
+  })
+  const [isSaving, setIsSaving] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [showNewProjectInput, setShowNewProjectInput] = useState(false)
+  const resolvedUserId = session?.user?.id || session?.user?.userId || session?.user?.user_id || task?.userId || task?.user_id || ''
+
+  const getAccountName = (accountId) => {
+    if (!accountId) return ''
+    const account = accounts.find((u) => u.id === accountId)
+    return account?.accountName || account?.name || ''
+  }
+
+  const getProjectName = (projectId) => {
+    if (!projectId) return ''
+    const project = projects.find((p) => p.id === projectId)
+    return project?.name || ''
   }
 
   const buildSheetTaskPayload = (taskRecord, { isUpdate = false } = {}) => {
@@ -917,6 +1006,15 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
         taskToSave = { ...task, ...formData }
       } else {
         taskToSave = storageManager.createTask({ ...formData })
+      }
+
+      const { firstName, lastName } = getUserNameParts()
+      taskToSave = {
+        ...taskToSave,
+        owner: formData.owner || firstName || taskToSave.owner || '',
+        userFirstName: taskToSave.userFirstName || firstName || '',
+        userLastName: taskToSave.userLastName || lastName || '',
+        userEmail: taskToSave.userEmail || session?.user?.email || ''
       }
 
       if (resolvedUserId) {

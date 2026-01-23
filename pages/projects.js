@@ -127,7 +127,11 @@ export default function Projects() {
   }
 
   const getProjectTasks = (projectId) => {
-    return tasks.filter((task) => task.projectId === projectId)
+    return tasks.filter((task) => {
+      const taskProjectId = task.projectId || task.project_id || task.projectID || task.project
+      if (!taskProjectId) return false
+      return String(taskProjectId) === String(projectId)
+    })
   }
 
   const visibleProjects = projects
@@ -318,12 +322,16 @@ export default function Projects() {
                           {projectTasks.length === 0 ? (
                             <div className="nested-item muted">No tasks assigned yet.</div>
                           ) : (
-                            projectTasks.map((task) => (
-                              <div key={task.id} className="nested-item">
-                                <span>{task.title}</span>
-                                <span className="muted">{task.status}</span>
-                              </div>
-                            ))
+                            projectTasks.map((task, index) => {
+                              const taskTitle = task.title || task.name || task.taskName || task.summary || 'Untitled task'
+                              const taskStatus = task.status || task.state || '—'
+                              return (
+                                <div key={task.id || `${project.id}-${index}`} className="nested-item">
+                                  <span>{taskTitle}</span>
+                                  <span className="muted">{taskStatus}</span>
+                                </div>
+                              )
+                            })
                           )}
                         </div>
                       )}

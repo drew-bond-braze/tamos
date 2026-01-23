@@ -832,7 +832,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
     return { firstName, lastName }
   }
 
-  const buildSheetTaskPayload = (taskRecord) => {
+  const buildSheetTaskPayload = (taskRecord, { isUpdate = false } = {}) => {
     const accountId = taskRecord.accountId || taskRecord.tamUnitId || formData.accountId || ''
     const projectId = taskRecord.projectId || formData.projectId || ''
     const accountName = taskRecord.accountName || getAccountName(accountId)
@@ -848,7 +848,10 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       ''
     const dueAt = taskRecord.dueAt || taskRecord.dueDate || taskRecord.date || formData.dueDate || ''
     const createdAt = taskRecord.createdAt || new Date().toISOString()
-    const updatedAt = taskRecord.updatedAt || createdAt
+    const updatedAt = isUpdate ? new Date().toISOString() : (taskRecord.updatedAt || createdAt)
+    const updatedUserId = isUpdate
+      ? (resolvedUserId || taskRecord.updatedUserId || '')
+      : (taskRecord.updatedUserId || resolvedUserId || '')
     const completed =
       typeof taskRecord.completed === 'boolean'
         ? taskRecord.completed
@@ -874,7 +877,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       completed,
       createdAt,
       updatedAt,
-      updatedUserId: resolvedUserId || taskRecord.updatedUserId || ''
+      updatedUserId
     }
   }
 
@@ -884,10 +887,11 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       return { skipped: true }
     }
 
+    const isUpdate = method === 'PUT'
     const response = await fetch('/api/google_sheets/tasks', {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildSheetTaskPayload(taskRecord))
+      body: JSON.stringify(buildSheetTaskPayload(taskRecord, { isUpdate }))
     })
 
     if (!response.ok) {

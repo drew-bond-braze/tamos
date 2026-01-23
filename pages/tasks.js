@@ -207,8 +207,6 @@ export default function Tasks() {
     return account.accountName || account.name || 'Unknown Account'
   }
 
-  const accountLabel = task?.accountName || getAccountName(task?.accountId || task?.tamUnitId)
-
   const getProjectName = (projectId) => {
     if (!projectId) return 'No Project'
     const project = projects.find(p => p.id === projectId)

@@ -61,8 +61,11 @@ const normalizeTaskRecord = (task) => {
   const description = normalized.description || normalized.details || normalized.nextStep || normalized.notes
   if (description && !normalized.description) normalized.description = description
 
-  const dueDate = normalized.dueDate || normalized.date || normalized.targetDate || normalized.targetdate
+  const dueDate = normalized.dueDate || normalized.dueAt || normalized.date || normalized.targetDate || normalized.targetdate
   if (dueDate && !normalized.dueDate) normalized.dueDate = dueDate
+  if (normalized.dueAt || dueDate) {
+    normalized.dueAt = normalized.dueAt || dueDate
+  }
 
   const userId = normalized.userId || normalized.user_id || normalized.ownerId || normalized.owner_id
   if (userId && !normalized.userId) normalized.userId = userId
@@ -523,7 +526,7 @@ export default function Tasks() {
                             <strong>{task.title || task.name || task.taskName || task.task || 'Untitled task'}</strong>
                           </td>
                           <td>{getStatusBadge(task.status)}</td>
-                          <td>{formatDate(task.dueDate || task.date)}</td>
+                          <td>{formatDate(task.dueDate || task.dueAt || task.date)}</td>
                           <td>{getPriorityBadge(task.priority)}</td>
                           <td>{task.owner || task.userEmail || '—'}</td>
                           <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
@@ -682,7 +685,7 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
               <div><strong>Status:</strong> {task.status}</div>
               <div><strong>Project:</strong> {projectLabel}</div>
               <div><strong>Priority:</strong> {task.priority}</div>
-              <div><strong>Due Date:</strong> {task.dueDate || task.date ? new Date(task.dueDate || task.date).toLocaleDateString() : '—'}</div>
+              <div><strong>Due Date:</strong> {task.dueDate || task.dueAt || task.date ? new Date(task.dueDate || task.dueAt || task.date).toLocaleDateString() : '—'}</div>
               <div><strong>Account:</strong> {accountLabel}</div>
             </div>
           </div>
@@ -779,7 +782,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
     projectId: task?.projectId || '',
     title: task?.title || task?.name || '',
     status: task?.status || 'Not started',
-    dueDate: task?.dueDate || task?.date || '',
+    dueDate: task?.dueDate || task?.dueAt || task?.date || '',
     priority: task?.priority || 'Medium',
     owner: task?.owner || task?.userEmail || session?.user?.email || '',
     description: task?.description || task?.details || task?.nextStep || ''
@@ -843,7 +846,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       taskRecord.description ||
       taskRecord.details ||
       ''
-    const dueDate = taskRecord.dueDate || taskRecord.date || formData.dueDate || ''
+    const dueAt = taskRecord.dueAt || taskRecord.dueDate || taskRecord.date || formData.dueDate || ''
     const createdAt = taskRecord.createdAt || new Date().toISOString()
     const updatedAt = taskRecord.updatedAt || createdAt
     const completed =
@@ -856,19 +859,16 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       id: taskRecord.id,
       name,
       details,
-      category: taskRecord.category || '',
-      iniative: taskRecord.iniative || taskRecord.initiative || '',
       priority: taskRecord.priority || formData.priority || '',
       nextStep,
       status: taskRecord.status || formData.status || '',
       accountName,
       accountId,
       projectId,
-      date: dueDate,
+      projectName,
+      dueAt,
       userId: resolvedUserId || taskRecord.userId || taskRecord.user_id || '',
-      user_id: resolvedUserId || taskRecord.userId || taskRecord.user_id || '',
       userEmail: session?.user?.email || taskRecord.userEmail || taskRecord.user_email || '',
-      user_email: session?.user?.email || taskRecord.userEmail || taskRecord.user_email || '',
       userFirstName: firstName || taskRecord.userFirstName || taskRecord.user_first_name || '',
       userLastName: lastName || taskRecord.userLastName || taskRecord.user_last_name || '',
       completed,

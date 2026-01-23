@@ -11,6 +11,40 @@ if (typeof window !== "undefined") {
   StorageManager = StorageManagerModule.default || StorageManagerModule.StorageManager || StorageManagerModule
 }
 
+const buildSheetCacheKey = (userId) => `tamos_sheet_cache_${userId}`
+
+const readSheetCache = (userId) => {
+  if (typeof window === "undefined" || !userId) return null
+  try {
+    const cached = localStorage.getItem(buildSheetCacheKey(userId))
+    return cached ? JSON.parse(cached) : null
+  } catch (error) {
+    console.error('Error reading tasks cache:', error)
+    return null
+  }
+}
+
+const writeSheetCache = (userId, data) => {
+  if (typeof window === "undefined" || !userId) return
+  try {
+    localStorage.setItem(
+      buildSheetCacheKey(userId),
+      JSON.stringify({ ...data, cachedAt: Date.now() })
+    )
+  } catch (error) {
+    console.error('Error writing tasks cache:', error)
+  }
+}
+
+const CACHE_TTL_MS = 10 * 60 * 1000
+
+const isCacheFresh = (cached) => {
+  if (!cached?.cachedAt) return false
+  const cachedAt = typeof cached.cachedAt === 'number' ? cached.cachedAt : Date.parse(cached.cachedAt)
+  if (!Number.isFinite(cachedAt)) return false
+  return Date.now() - cachedAt < CACHE_TTL_MS
+}
+
 export default function Tasks() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -32,44 +66,47 @@ export default function Tasks() {
       return
     }
 
-    console.log(session?.user);
-
     if (typeof window !== "undefined" && StorageManager) {
       const sm = new StorageManager()
       setStorageManager(sm)
-      loadData(sm)
     }
   }, [status, router])
 
-  const loadData = async (sm) => {
+  const fetchSheetData = async (url, label) => {
     try {
-      const [tasksData, clientsData, projectsData, accountsData] = await Promise.all([
+      const response = await fetch(url, { method: 'GET' })
+      if (!response.ok) {
+        console.error(`Failed to fetch ${label}:`, response.statusText)
+        return null
+      }
+      return await response.json()
+    } catch (error) {
+      console.error(`Network error fetching ${label}:`, error)
+      return null
+    }
+  }
+
+  const loadData = async (sm, userId, cachedData = {}, skipSheetFetch = false) => {
+    try {
+      const [localTasks, clientsData, localProjects, localAccounts] = await Promise.all([
         sm.getTasks(),
         sm.getClients(),
         sm.getProjects(),
         sm.getAccounts()
       ])
 
-      let sheetTasks = [];
-      let localTasks = [];
-      if (session?.user?.id) {
-        try {
-          const response = await fetch(`/api/google_sheets/tasks?id=${encodeURIComponent(session?.user?.id)}`, {
-            method: 'GET'
-          });
-
-          if (response.ok) {
-            sheetTasks = await response.json();
-          } else {
-            console.error('Failed to fetch tasks:', response.statusText);
-          }
-        } catch (err) {
-          console.error('Network error fetching sheet tasks:', err);
-        }
+      let summary = null
+      if (!skipSheetFetch && userId) {
+        summary = await fetchSheetData(
+          `/api/google_sheets/summary?userId=${encodeURIComponent(userId)}`,
+          'summary'
+        )
       }
-      console.log('Sheet tasks:', sheetTasks);
 
-      const combinedTasks = [...localTasks, ...sheetTasks];
+      const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? localAccounts ?? []
+      const nextProjects = summary?.projects ?? cachedData.projects ?? localProjects ?? []
+      const sheetTasks = summary?.tasks ?? cachedData.tasks ?? []
+      const combinedTasks = [...(localTasks || []), ...(sheetTasks || [])]
       const normalizedTasks = combinedTasks.map((task) => {
         if (!task || task.accountId || !task.tamUnitId) {
           return task;
@@ -81,12 +118,36 @@ export default function Tasks() {
 
       setTasks(uniqueTasks)
       setClients(clientsData)
-      setProjects(projectsData)
-      setAccounts(accountsData)
+      setProjects(nextProjects)
+      setAccounts(nextAccounts)
+
+      if (summary && userId) {
+        writeSheetCache(userId, {
+          accounts: nextAccounts,
+          projects: nextProjects,
+          tasks: sheetTasks
+        })
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     }
   }
+
+  useEffect(() => {
+    if (status !== "authenticated" || !storageManager) return
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const cached = readSheetCache(userId)
+    if (cached) {
+      setAccounts(cached.accounts || cached.tamUnits || [])
+      setProjects(cached.projects || [])
+      setTasks(cached.tasks || [])
+    }
+
+    const skipSheetFetch = Boolean(cached && isCacheFresh(cached))
+    loadData(storageManager, userId, cached || {}, skipSheetFetch)
+  }, [status, session?.user?.id, storageManager])
 
   const getFilteredTasks = () => {
     let filtered = [...tasks]

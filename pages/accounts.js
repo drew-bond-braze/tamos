@@ -27,11 +27,20 @@ const writeSheetCache = (userId, data) => {
   try {
     localStorage.setItem(
       buildSheetCacheKey(userId),
-      JSON.stringify({ ...data, cachedAt: new Date().toISOString() })
+      JSON.stringify({ ...data, cachedAt: Date.now() })
     )
   } catch (error) {
     console.error('Error writing accounts cache:', error)
   }
+}
+
+const CACHE_TTL_MS = 10 * 60 * 1000
+
+const isCacheFresh = (cached) => {
+  if (!cached?.cachedAt) return false
+  const cachedAt = typeof cached.cachedAt === 'number' ? cached.cachedAt : Date.parse(cached.cachedAt)
+  if (!Number.isFinite(cachedAt)) return false
+  return Date.now() - cachedAt < CACHE_TTL_MS
 }
 
 export default function Accounts() {
@@ -81,15 +90,14 @@ export default function Accounts() {
       if (!userId) return
 
       const encodedUserId = encodeURIComponent(userId)
-      const [sheetAccounts, sheetProjects, sheetTasks] = await Promise.all([
-        fetchSheetData(`/api/google_sheets/accounts?userId=${encodedUserId}`, 'accounts'),
-        fetchSheetData(`/api/google_sheets/projects?userId=${encodedUserId}`, 'projects'),
-        fetchSheetData(`/api/google_sheets/tasks?userId=${encodedUserId}`, 'tasks')
-      ])
+      const summary = await fetchSheetData(
+        `/api/google_sheets/summary?userId=${encodedUserId}`,
+        'summary'
+      )
 
-      const nextAccounts = sheetAccounts ?? cachedData.accounts ?? cachedData.tamUnits ?? []
-      const nextProjects = sheetProjects ?? cachedData.projects ?? []
-      const nextTasks = sheetTasks ?? cachedData.tasks ?? []
+      const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? []
+      const nextProjects = summary?.projects ?? cachedData.projects ?? []
+      const nextTasks = summary?.tasks ?? cachedData.tasks ?? []
 
       setAccounts(nextAccounts)
       setProjects(nextProjects)
@@ -117,6 +125,7 @@ export default function Accounts() {
       setTasks(cached.tasks || [])
     }
 
+    if (cached && isCacheFresh(cached)) return
     loadData(userId, cached)
   }, [status, session?.user?.id])
 

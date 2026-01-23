@@ -983,7 +983,10 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal-content task-form-modal${task ? ' is-editing' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h2>{task ? 'Edit Task' : 'New Task'}</h2>
           <button onClick={onClose} className="btn-close">×</button>

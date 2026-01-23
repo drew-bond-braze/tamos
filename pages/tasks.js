@@ -676,11 +676,64 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     }
   }, [task, storageManager])
 
-  const loadUpdates = async () => {
-    if (!storageManager || !task) return
+  const fetchSheetUpdates = async (taskId) => {
     try {
-      const taskUpdates = await storageManager.getTaskUpdates(task.id)
-      setUpdates(taskUpdates)
+      const response = await fetch(`/api/google_sheets/updates?taskId=${encodeURIComponent(taskId)}`, { method: 'GET' })
+      if (!response.ok) {
+        console.error('Failed to fetch sheet updates:', response.statusText)
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Network error fetching sheet updates:', error)
+      return []
+    }
+  }
+
+  const normalizeUpdateRecord = (update, fallbackId) => {
+    if (!update) return null
+    const createdAt = update.createdAt || update.created_at || update.createdAt || update.created
+    return {
+      id: update.id || fallbackId,
+      taskId: update.taskId || update.task_id || task.id,
+      accountId: update.accountId || update.account_id || task.accountId || task.tamUnitId || null,
+      projectId: update.projectId || update.project_id || task.projectId || null,
+      userId: update.userId || update.user_id || null,
+      userName: update.userName || update.user_name || update.author || update.userEmail || update.user_email || 'Unknown',
+      author: update.author || update.userName || update.user_name || update.userEmail || update.user_email || 'Unknown',
+      note: update.note || update.body || '',
+      updateType: update.updateType || update.type || 'Comment',
+      body: update.body || update.note || '',
+      statusAfter: update.statusAfter || update.status_after || null,
+      createdAt: createdAt || new Date().toISOString(),
+      updatedAt: update.updatedAt || update.updated_at || null,
+      updatedUserId: update.updatedUserId || update.updated_user_id || null
+    }
+  }
+
+  const loadUpdates = async () => {
+    if (!task) return
+    try {
+      const [localUpdates, sheetUpdates] = await Promise.all([
+        storageManager ? storageManager.getTaskUpdates(task.id) : [],
+        fetchSheetUpdates(task.id)
+      ])
+
+      const normalizedSheetUpdates = (sheetUpdates || [])
+        .map((update, index) => normalizeUpdateRecord(update, `${task.id}-sheet-${index}`))
+        .filter(Boolean)
+      const normalizedLocalUpdates = (localUpdates || [])
+        .map((update, index) => normalizeUpdateRecord(update, update.id || `${task.id}-local-${index}`))
+        .filter(Boolean)
+
+      const mergedUpdates = Array.from(new Map(
+        [...normalizedSheetUpdates, ...normalizedLocalUpdates].map(update => [update.id, update])
+      ).values())
+
+      mergedUpdates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+      setUpdates(mergedUpdates)
     } catch (error) {
       console.error('Error loading updates:', error)
     }

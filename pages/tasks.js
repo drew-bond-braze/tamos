@@ -133,6 +133,13 @@ export default function Tasks() {
     }
   }
 
+  const refreshTaskData = async () => {
+    if (!storageManager) return
+    const userId = session?.user?.id
+    const cached = userId ? readSheetCache(userId) : null
+    await loadData(storageManager, userId, cached || {})
+  }
+
   useEffect(() => {
     if (status !== "authenticated" || !storageManager) return
     const userId = session?.user?.id
@@ -154,9 +161,11 @@ export default function Tasks() {
 
     // Apply view filters
     switch (filterView) {
-      case 'my-tasks':
-        filtered = filtered.filter(t => t.user_id === session?.user?.id)
+      case 'my-tasks': {
+        const userId = session?.user?.id
+        filtered = filtered.filter(t => t.user_id === userId || t.userId === userId)
         break
+      }
       case 'due-this-week':
         const now = new Date()
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -306,9 +315,7 @@ export default function Tasks() {
   const handleTaskSaved = () => {
     setShowTaskForm(false)
     setEditingTask(null)
-    if (storageManager) {
-      loadData(storageManager)
-    }
+    refreshTaskData()
   }
 
   const handleTaskDeleted = async (taskId) => {
@@ -317,7 +324,7 @@ export default function Tasks() {
     
     try {
       await storageManager.deleteTask(taskId)
-      await loadData(storageManager)
+      await refreshTaskData()
       if (selectedTask?.id === taskId) {
         closeTaskDrawer()
       }
@@ -500,7 +507,7 @@ export default function Tasks() {
           onDelete={() => handleTaskDeleted(selectedTask.id)}
           onUpdate={() => {
             if (storageManager) {
-              loadData(storageManager)
+              refreshTaskData()
               storageManager.getTask(selectedTask.id).then(updated => {
                 setSelectedTask(updated)
               })
@@ -575,6 +582,8 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     const project = projects.find(p => p.id === projectId)
     return project ? project.name : 'Unknown Project'
   }
+
+  const accountLabel = task.accountName || getAccountName(task.accountId || task.tamUnitId)
 
   const handleAddUpdate = async () => {
     if (!newUpdate.body.trim() || !storageManager) return
@@ -731,6 +740,69 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
   const [newProjectName, setNewProjectName] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
   const [showNewProjectInput, setShowNewProjectInput] = useState(false)
+  const resolvedUserId = session?.user?.id || session?.user?.userId || session?.user?.user_id || task?.userId || task?.user_id || ''
+
+  const getAccountName = (accountId) => {
+    if (!accountId) return ''
+    const account = accounts.find((u) => u.id === accountId)
+    return account?.accountName || account?.name || ''
+  }
+
+  const getProjectName = (projectId) => {
+    if (!projectId) return ''
+    const project = projects.find((p) => p.id === projectId)
+    return project?.name || ''
+  }
+
+  const buildSheetTaskPayload = (taskRecord) => {
+    const accountId = taskRecord.accountId || taskRecord.tamUnitId || formData.accountId || ''
+    const projectId = taskRecord.projectId || formData.projectId || ''
+    const accountName = taskRecord.accountName || getAccountName(accountId)
+    const projectName = taskRecord.projectName || getProjectName(projectId)
+
+    const payload = { ...taskRecord }
+
+    if (accountId) payload.accountId = accountId
+    if (projectId) payload.projectId = projectId
+    if (resolvedUserId) {
+      payload.userId = resolvedUserId
+      payload.user_id = resolvedUserId
+    }
+    if (session?.user?.email) {
+      payload.userEmail = session.user.email
+      payload.user_email = session.user.email
+    }
+    if (accountName) payload.accountName = accountName
+    if (projectName) payload.projectName = projectName
+
+    return payload
+  }
+
+  const syncTaskToSheet = async (taskRecord) => {
+    if (!resolvedUserId) {
+      console.warn('No user id available for Google Sheets sync')
+      return { skipped: true }
+    }
+
+    const response = await fetch('/api/google_sheets/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildSheetTaskPayload(taskRecord))
+    })
+
+    if (!response.ok) {
+      let message = 'Failed to sync task to Google Sheets'
+      try {
+        const data = await response.json()
+        message = data?.error || data?.details || message
+      } catch (error) {
+        console.error('Error parsing sheet sync response:', error)
+      }
+      throw new Error(message)
+    }
+
+    return response.json()
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -747,8 +819,20 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       } else {
         taskToSave = storageManager.createTask({ ...formData })
       }
-      
-      await storageManager.saveTask(taskToSave)
+
+      if (resolvedUserId) {
+        taskToSave = { ...taskToSave, userId: resolvedUserId, user_id: resolvedUserId }
+      }
+
+      const savedTask = await storageManager.saveTask(taskToSave)
+      if (!task) {
+        try {
+          await syncTaskToSheet(savedTask)
+        } catch (error) {
+          console.error('Error syncing task to Google Sheets:', error)
+          alert('Task saved locally, but failed to sync to Google Sheets.')
+        }
+      }
       onSave()
     } catch (error) {
       console.error('Error saving task:', error)

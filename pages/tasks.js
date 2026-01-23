@@ -840,12 +840,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
     const { firstName, lastName } = getUserNameParts()
     const name = taskRecord.name || taskRecord.title || formData.title || ''
     const details = taskRecord.details || taskRecord.description || formData.description || ''
-    const nextStep =
-      taskRecord.nextStep ||
-      taskRecord.lastUpdateSummary ||
-      taskRecord.description ||
-      taskRecord.details ||
-      ''
+    const nextStep = taskRecord.nextStep || taskRecord.lastUpdateSummary || ''
     const dueAt = taskRecord.dueAt || taskRecord.dueDate || taskRecord.date || formData.dueDate || ''
     const createdAt = taskRecord.createdAt || new Date().toISOString()
     const updatedAt = isUpdate ? new Date().toISOString() : (taskRecord.updatedAt || createdAt)

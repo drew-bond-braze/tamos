@@ -55,7 +55,7 @@ export default function Projects() {
   const getTamUnitName = (tamUnitId) => {
     if (!tamUnitId) return 'Personal'
     const unit = tamUnits.find((u) => u.id === tamUnitId)
-    return unit ? unit.name : 'Unknown TAM Unit'
+    return unit ? unit.name : 'Unknown Account'
   }
 
   const getProjectTasks = (projectId) => {
@@ -129,7 +129,7 @@ export default function Projects() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link active">My Projects</Link>
-              <Link href="/tam-units" className="nav-link">My TAM Units</Link>
+              <Link href="/tam-units" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>
@@ -180,12 +180,12 @@ export default function Projects() {
                         />
                       </div>
                       <div className="form-group">
-                        <label>TAM Unit *</label>
+                        <label>Account *</label>
                         <select
                           value={newProjectTamUnit}
                           onChange={(e) => setNewProjectTamUnit(e.target.value)}
                         >
-                          <option value="">Select TAM Unit</option>
+                          <option value="">Select Account</option>
                           {tamUnits.map((unit) => (
                             <option key={unit.id} value={unit.id}>{unit.name}</option>
                           ))}

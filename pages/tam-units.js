@@ -195,7 +195,7 @@ export default function TamUnits() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/tam-units" className="nav-link active">My TAM Units</Link>
+              <Link href="/tam-units" className="nav-link active">My Accounts</Link>
             </div>
           </div>
         </nav>
@@ -212,13 +212,13 @@ export default function TamUnits() {
           <main className="main-content">
             <div className="dashboard-header">
               <div>
-                <h1>My TAM Units</h1>
-                <p>See projects by TAM unit and roll up tasks under each project.</p>
+                <h1>My Accounts</h1>
+                <p>See projects by account and roll up tasks under each project.</p>
               </div>
             </div>
 
             <section className="card">
-              <div className="card-title">TAM Units</div>
+              <div className="card-title">Accounts</div>
               <div className="card-list">
                 {tamUnits.map((unit) => {
                   const unitProjects = getUnitProjects(unit)
@@ -286,15 +286,15 @@ export default function TamUnits() {
             </section>
 
             {/* <section className="card">
-              <div className="card-title">Add TAM Unit</div>
+              <div className="card-title">Add Account</div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>New TAM Unit</label>
+                  <label>New Account</label>
                   <input
                     type="text"
                     value={newTamUnitName}
                     onChange={(e) => setNewTamUnitName(e.target.value)}
-                    placeholder="TAM unit name"
+                    placeholder="Account name"
                   />
                 </div>
               </div>
@@ -304,7 +304,7 @@ export default function TamUnits() {
                 className="btn btn-secondary btn-xs"
                 disabled={isCreatingTamUnit}
               >
-                {isCreatingTamUnit ? 'Creating...' : 'Add TAM Unit'}
+                {isCreatingTamUnit ? 'Creating...' : 'Add Account'}
               </button>
             </section> */}
           </main>

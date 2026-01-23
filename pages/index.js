@@ -94,7 +94,7 @@ export default function Home() {
               <Link href="/" className="nav-link active">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/tam-units" className="nav-link">My TAM Units</Link>
+              <Link href="/tam-units" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>
@@ -168,7 +168,7 @@ export default function Home() {
 
             <div className="dashboard-grid">
               <section className="card card-wide">
-                <div className="card-title">My TAM Units</div>
+                <div className="card-title">My Accounts</div>
                 <div className="units-grid">
                   <div className="unit-card">
                     <div>

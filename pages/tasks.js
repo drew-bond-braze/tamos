@@ -135,7 +135,7 @@ export default function Tasks() {
   const getTamUnitName = (tamUnitId) => {
     if (!tamUnitId) return 'Personal'
     const unit = tamUnits.find(u => u.id === tamUnitId)
-    return unit ? unit.name : 'Unknown TAM Unit'
+    return unit ? unit.name : 'Unknown Account'
   }
 
   const getProjectName = (projectId) => {
@@ -289,7 +289,7 @@ export default function Tasks() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link active">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/tam-units" className="nav-link">My TAM Units</Link>
+              <Link href="/tam-units" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>
@@ -345,7 +345,7 @@ export default function Tasks() {
                     className={filterView === 'by-client' ? 'filter-tab active' : 'filter-tab'}
                     onClick={() => setFilterView('by-client')}
                   >
-                    By TAM Unit
+                    By Account
                   </button>
                 </div>
 
@@ -356,7 +356,7 @@ export default function Tasks() {
                       onChange={(e) => setSelectedTamUnit(e.target.value)}
                       className="client-select"
                     >
-                      <option value="all">All TAM Units</option>
+                      <option value="all">All Accounts</option>
                       {tamUnits.map(unit => (
                         <option key={unit.id} value={unit.id}>{unit.name}</option>
                       ))}
@@ -369,7 +369,7 @@ export default function Tasks() {
                 <table className="tasks-table">
                   <thead>
                     <tr>
-                      <th>TAM Unit</th>
+                      <th>Account</th>
                       <th>Project</th>
                       <th>Task</th>
                       <th>Status</th>
@@ -495,7 +495,7 @@ function TaskDetailDrawer({ task, projects, tamUnits, storageManager, session, o
   const getTamUnitName = (tamUnitId) => {
     if (!tamUnitId) return 'Personal'
     const unit = tamUnits.find(u => u.id === tamUnitId)
-    return unit ? unit.name : 'Unknown TAM Unit'
+    return unit ? unit.name : 'Unknown Account'
   }
 
   const getProjectName = (projectId) => {
@@ -554,7 +554,7 @@ function TaskDetailDrawer({ task, projects, tamUnits, storageManager, session, o
               <div><strong>Project:</strong> {getProjectName(task.projectId)}</div>
               <div><strong>Priority:</strong> {task.priority}</div>
               <div><strong>Due Date:</strong> {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</div>
-              <div><strong>TAM Unit:</strong> {getTamUnitName(task.tamUnitId)}</div>
+              <div><strong>Account:</strong> {getTamUnitName(task.tamUnitId)}</div>
             </div>
           </div>
 
@@ -733,7 +733,7 @@ function TaskFormModal({ task, projects, tamUnits, storageManager, session, onCl
         </div>
         <form onSubmit={handleSubmit} className="task-form">
           <div className="form-group">
-            <label>TAM Unit *</label>
+            <label>Account *</label>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <select 
                 value={formData.tamUnitId}
@@ -743,7 +743,7 @@ function TaskFormModal({ task, projects, tamUnits, storageManager, session, onCl
                 required
                 style={{ flex: 1 }}
               >
-                <option value="">Select TAM Unit</option>
+                <option value="">Select Account</option>
                 {tamUnits.map(unit => (
                   <option key={unit.id} value={unit.id}>{unit.name}</option>
                 ))}

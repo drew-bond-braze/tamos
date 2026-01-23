@@ -89,10 +89,10 @@ export async function addTask(taskData) {
 // -- DELETE TASK
 export default async function handler(req, res) {
   if (req.method === 'GET') {
-    const { id } = req.query;
-    if (!id) return res.status(400).json({ error: 'ID required' });
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: 'User ID required' });
     try {
-      const data = await getTasksByUserId(id);
+      const data = await getTasksByUserId(userId);
       return res.status(200).json(data);
     } catch (error) {
       return res.status(500).json({ error: 'Fetch failed' });

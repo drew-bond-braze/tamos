@@ -20,15 +20,15 @@ export default function TamUnits() {
   const [newTamUnitName, setNewTamUnitName] = useState('')
   const [isCreatingTamUnit, setIsCreatingTamUnit] = useState(false)
 
-  const allowedTamUnits = [
-    'Bell Media',
-    'Papa Johns',
-    'P&G',
-    'ELC',
-    'Questrade',
-    'Amazon Games',
-    'Personal'
-  ]
+  // const allowedTamUnits = [
+    // 'Bell Media',
+    // 'Papa Johns',
+    // 'P&G',
+    // 'ELC',
+    // 'Questrade',
+    // 'Amazon Games',
+    // 'Personal'
+  // ]
 
   useEffect(() => {
     if (typeof window !== "undefined" && StorageManager) {
@@ -38,16 +38,63 @@ export default function TamUnits() {
     }
   }, [])
 
-  const loadData = async (sm) => {
+  const loadData = async () => {
     try {
-      const [tamUnitsData, projectsData, tasksData] = await Promise.all([
-        sm.getTamUnits(),
-        sm.getProjects(),
-        sm.getTasks()
-      ])
-      setTamUnits(tamUnitsData)
-      setProjects(projectsData)
-      setTasks(tasksData)
+      // const [tamUnitsData, projectsData, tasksData] = await Promise.all([
+      //   sm.getTamUnits(),
+      //   sm.getProjects(),
+      //   sm.getTasks()
+      // ])
+      let sheetAccounts = [];
+      let sheetProjects = [];
+      let sheetTasks = [];
+      if (session?.user?.id) {
+        try {
+          const response = await fetch(`/api/google_sheets/accounts?userId=${encodeURIComponent(session?.user?.id)}`, {
+            method: 'GET'
+          });
+
+          if (response.ok) {
+            sheetAccounts = await response.json();
+          } else {
+            console.error('Failed to fetch accounts:', response.statusText);
+          }
+        } catch (err) {
+          console.error('Network error fetching sheet accounts:', err);
+        }
+
+        try {
+          const response = await fetch(`/api/google_sheets/projects?userId=${encodeURIComponent(session?.user?.id)}`, {
+            method: 'GET'
+          });
+
+          if (response.ok) {
+            sheetProjects = await response.json();
+          } else {
+            console.error('Failed to fetch projects:', response.statusText);
+          }
+        } catch (err) {
+          console.error('Network error fetching sheet projects:', err);
+        }
+
+        try {
+          const response = await fetch(`/api/google_sheets/tasks?userId=${encodeURIComponent(session?.user?.id)}`, {
+            method: 'GET'
+          });
+
+          if (response.ok) {
+            sheetTasks = await response.json();
+          } else {
+            console.error('Failed to fetch tasks:', response.statusText);
+          }
+        } catch (err) {
+          console.error('Network error fetching sheet tasks:', err);
+        }
+      }
+  
+      setTamUnits(sheetAccounts)
+      setProjects(sheetProjects)
+      setTasks(sheetTasks)
     } catch (error) {
       console.error('Error loading data:', error)
     }
@@ -69,35 +116,34 @@ export default function TamUnits() {
 
   const getUnitProjects = (unit) => {
     if (unit.name === 'Personal') {
-      return projects.filter((project) => project.tamUnitId === unit.id)
+      return projects.filter((project) => project.accountId === unit.id)
     }
-    return projects.filter((project) => project.tamUnitId === unit.id)
+    return projects.filter((project) => project.accountId === unit.id)
   }
 
   const getProjectTasks = (projectId) => {
     return tasks.filter((task) => task.projectId === projectId)
   }
+  // const filteredTamUnits = tamUnits
+  //   .filter((unit) => allowedTamUnits.includes(unit.accountName))
+  //   .filter((unit, index, list) => list.findIndex((item) => item.accountName === unit.accountName) === index)
 
-  const filteredTamUnits = tamUnits
-    .filter((unit) => allowedTamUnits.includes(unit.name))
-    .filter((unit, index, list) => list.findIndex((item) => item.name === unit.name) === index)
+  // const handleCreateTamUnit = async () => {
+  //   if (!newTamUnitName.trim() || !storageManager) return
 
-  const handleCreateTamUnit = async () => {
-    if (!newTamUnitName.trim() || !storageManager) return
-
-    setIsCreatingTamUnit(true)
-    try {
-      const unit = storageManager.createTamUnit(newTamUnitName.trim())
-      await storageManager.saveTamUnit(unit)
-      setNewTamUnitName('')
-      await loadData(storageManager)
-    } catch (error) {
-      console.error('Error creating TAM unit:', error)
-      alert('Error creating TAM unit')
-    } finally {
-      setIsCreatingTamUnit(false)
-    }
-  }
+  //   setIsCreatingTamUnit(true)
+  //   try {
+  //     const unit = storageManager.createTamUnit(newTamUnitName.trim())
+  //     await storageManager.saveTamUnit(unit)
+  //     setNewTamUnitName('')
+  //     await loadData(storageManager)
+  //   } catch (error) {
+  //     console.error('Error creating TAM unit:', error)
+  //     alert('Error creating TAM unit')
+  //   } finally {
+  //     setIsCreatingTamUnit(false)
+  //   }
+  // }
 
   if (status === "loading") {
     return (
@@ -157,13 +203,13 @@ export default function TamUnits() {
             <section className="card">
               <div className="card-title">TAM Units</div>
               <div className="card-list">
-                {filteredTamUnits.map((unit) => {
+                {tamUnits.map((unit) => {
                   const unitProjects = getUnitProjects(unit)
                   return (
                     <div key={unit.id} className="card-list-item">
                       <div className="disclosure-row">
                         <div>
-                          <div className="card-item-title">{unit.name}</div>
+                          <div className="card-item-title">{unit.accountName}</div>
                           <div className="disclosure-meta">{unitProjects.length} projects</div>
                         </div>
                         <button
@@ -193,7 +239,7 @@ export default function TamUnits() {
                                       className="btn btn-secondary btn-small"
                                       onClick={() => toggleProject(project.id)}
                                     >
-                                      {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
+                                      {expandedProjects[project.accountId] ? 'Hide tasks' : 'View tasks'}
                                     </button>
                                   </div>
                                   {expandedProjects[project.id] && (
@@ -203,7 +249,7 @@ export default function TamUnits() {
                                       ) : (
                                         projectTasks.map((task) => (
                                           <div key={task.id} className="nested-item">
-                                            <span>{task.title}</span>
+                                            <span>{task.name}</span>
                                             <span className="muted">{task.status}</span>
                                           </div>
                                         ))
@@ -222,7 +268,7 @@ export default function TamUnits() {
               </div>
             </section>
 
-            <section className="card">
+            {/* <section className="card">
               <div className="card-title">Add TAM Unit</div>
               <div className="form-row">
                 <div className="form-group">
@@ -243,7 +289,7 @@ export default function TamUnits() {
               >
                 {isCreatingTamUnit ? 'Creating...' : 'Add TAM Unit'}
               </button>
-            </section>
+            </section> */}
           </main>
 
           <footer className="footer">

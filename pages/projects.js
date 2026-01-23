@@ -9,6 +9,31 @@ if (typeof window !== "undefined") {
   StorageManager = StorageManagerModule.default || StorageManagerModule.StorageManager || StorageManagerModule
 }
 
+const buildSheetCacheKey = (userId) => `tamos_sheet_cache_${userId}`
+
+const readSheetCache = (userId) => {
+  if (typeof window === "undefined" || !userId) return null
+  try {
+    const cached = localStorage.getItem(buildSheetCacheKey(userId))
+    return cached ? JSON.parse(cached) : null
+  } catch (error) {
+    console.error('Error reading projects cache:', error)
+    return null
+  }
+}
+
+const writeSheetCache = (userId, data) => {
+  if (typeof window === "undefined" || !userId) return
+  try {
+    localStorage.setItem(
+      buildSheetCacheKey(userId),
+      JSON.stringify({ ...data, cachedAt: new Date().toISOString() })
+    )
+  } catch (error) {
+    console.error('Error writing projects cache:', error)
+  }
+}
+
 export default function Projects() {
   const { data: session, status } = useSession()
   const [storageManager, setStorageManager] = useState(null)
@@ -26,24 +51,66 @@ export default function Projects() {
     if (typeof window !== "undefined" && StorageManager) {
       const sm = new StorageManager()
       setStorageManager(sm)
-      loadData(sm)
     }
   }, [])
 
-  const loadData = async (sm) => {
+  const fetchSheetData = async (url, label) => {
     try {
-      const [projectsData, tasksData, tamUnitsData] = await Promise.all([
-        sm.getProjects(),
-        sm.getTasks(),
-        sm.getTamUnits()
+      const response = await fetch(url, { method: 'GET' })
+      if (!response.ok) {
+        console.error(`Failed to fetch ${label}:`, response.statusText)
+        return null
+      }
+      return await response.json()
+    } catch (error) {
+      console.error(`Network error fetching ${label}:`, error)
+      return null
+    }
+  }
+
+  const loadData = async (userId, cachedData = {}) => {
+    try {
+      if (!userId) return
+
+      const encodedUserId = encodeURIComponent(userId)
+      const [sheetProjects, sheetTasks, sheetAccounts] = await Promise.all([
+        fetchSheetData(`/api/google_sheets/projects?userId=${encodedUserId}`, 'projects'),
+        fetchSheetData(`/api/google_sheets/tasks?userId=${encodedUserId}`, 'tasks'),
+        fetchSheetData(`/api/google_sheets/accounts?userId=${encodedUserId}`, 'accounts')
       ])
-      setProjects(projectsData)
-      setTasks(tasksData)
-      setTamUnits(tamUnitsData)
+
+      const nextProjects = sheetProjects ?? cachedData.projects ?? []
+      const nextTasks = sheetTasks ?? cachedData.tasks ?? []
+      const nextAccounts = sheetAccounts ?? cachedData.tamUnits ?? []
+
+      setProjects(nextProjects)
+      setTasks(nextTasks)
+      setTamUnits(nextAccounts)
+
+      writeSheetCache(userId, {
+        tamUnits: nextAccounts,
+        projects: nextProjects,
+        tasks: nextTasks
+      })
     } catch (error) {
       console.error('Error loading data:', error)
     }
   }
+
+  useEffect(() => {
+    if (status !== "authenticated") return
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const cached = readSheetCache(userId)
+    if (cached) {
+      setProjects(cached.projects || [])
+      setTasks(cached.tasks || [])
+      setTamUnits(cached.tamUnits || [])
+    }
+
+    loadData(userId, cached)
+  }, [status, session?.user?.id])
 
   const toggleProject = (projectId) => {
     setExpandedProjects((prev) => ({
@@ -87,7 +154,9 @@ export default function Projects() {
       setNewProjectTamUnit('')
       setNewProjectDueDate('')
       setShowNewProject(false)
-      await loadData(storageManager)
+      if (session?.user?.id) {
+        await loadData(session.user.id, readSheetCache(session.user.id))
+      }
     } catch (error) {
       console.error('Error creating project:', error)
       alert('Error creating project')

@@ -67,7 +67,7 @@ export default function Projects() {
   const handleCreateProject = async () => {
     if (!newProjectName.trim() || !storageManager) return
     if (!newProjectTamUnit) {
-      alert('Select a TAM unit for this project')
+      alert('Select an account for this project')
       return
     }
 

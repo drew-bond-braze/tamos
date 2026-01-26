@@ -75,6 +75,7 @@ export default function Projects() {
   const [newProjectAccount, setNewProjectAccount] = useState('')
   const [newProjectDueDate, setNewProjectDueDate] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     if (typeof window !== "undefined" && StorageManager) {
@@ -128,6 +129,42 @@ export default function Projects() {
       })
     } catch (error) {
       console.error('Error loading data:', error)
+    }
+  }
+
+  const handleRefresh = async () => {
+    const userId = session?.user?.id
+    if (!userId) return
+
+    setIsRefreshing(true)
+    try {
+      const encodedUserId = encodeURIComponent(userId)
+      const [summary, updates] = await Promise.all([
+        fetchSheetData(`/api/google_sheets/summary?userId=${encodedUserId}&force=1`, 'summary'),
+        fetchSheetData(`/api/google_sheets/updates?userId=${encodedUserId}`, 'updates')
+      ])
+
+      if (!summary) return
+
+      const nextProjects = summary?.projects ?? []
+      const nextTasks = summary?.tasks ?? []
+      const nextAccounts = summary?.accounts ?? []
+      const nextUpdates = Array.isArray(updates) ? updates : []
+
+      setProjects(nextProjects)
+      setTasks(nextTasks)
+      setAccounts(nextAccounts)
+
+      writeSheetCache(userId, {
+        accounts: nextAccounts,
+        projects: nextProjects,
+        tasks: nextTasks,
+        updates: nextUpdates
+      })
+    } catch (error) {
+      console.error('Error refreshing sheet data:', error)
+    } finally {
+      setIsRefreshing(false)
     }
   }
 
@@ -267,6 +304,18 @@ export default function Projects() {
               <div>
                 <h1>My Projects</h1>
                 <p>Track projects and roll up the tasks underneath each one.</p>
+              </div>
+              <div className="dashboard-header-actions">
+                <button
+                  type="button"
+                  className="refresh-button"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  aria-label="Refresh from Google Sheets"
+                  title="Refresh"
+                >
+                  ↻
+                </button>
               </div>
             </div>
 

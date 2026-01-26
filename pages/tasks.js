@@ -215,6 +215,7 @@ export default function Tasks() {
   const [showTaskDrawer, setShowTaskDrawer] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -522,6 +523,50 @@ export default function Tasks() {
     }
   }
 
+  const handleRefresh = async () => {
+    const userId = session?.user?.id
+    if (!userId) return
+
+    setIsRefreshing(true)
+    try {
+      const encodedUserId = encodeURIComponent(userId)
+      const [summary, updates] = await Promise.all([
+        fetchSheetData(`/api/google_sheets/summary?userId=${encodedUserId}&force=1`, 'summary'),
+        fetchSheetData(`/api/google_sheets/updates?userId=${encodedUserId}`, 'updates')
+      ])
+
+      if (!summary) return
+
+      const nextAccounts = summary?.accounts ?? []
+      const nextProjects = summary?.projects ?? []
+      const nextTasks = (summary?.tasks ?? []).map(normalizeTaskRecord).filter(Boolean)
+      const nextUpdates = Array.isArray(updates) ? updates : []
+
+      setAccounts(nextAccounts)
+      setProjects(nextProjects)
+      setTasks(nextTasks)
+
+      if (storageManager && Array.isArray(summary?.tasks) && Array.isArray(summary?.projects)) {
+        const [localTasks, localProjects] = await Promise.all([
+          storageManager.getTasks(),
+          storageManager.getProjects()
+        ])
+        await pruneLocalAgainstSheet(storageManager, localTasks, localProjects, summary.tasks, summary.projects)
+      }
+
+      writeSheetCache(userId, {
+        accounts: nextAccounts,
+        projects: nextProjects,
+        tasks: summary?.tasks ?? [],
+        updates: nextUpdates
+      })
+    } catch (error) {
+      console.error('Error refreshing sheet data:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   const handleProjectCreated = (project) => {
     if (!project) return
     setProjects((prev) => mergeById(prev, project))
@@ -590,9 +635,21 @@ export default function Tasks() {
                   <h1 className="page-title">Task Tracker</h1>
                   <p className="page-subtitle">Track tasks and projects per client</p>
                 </div>
-                <button onClick={handleNewTask} className="btn btn-primary">
-                  + New Task
-                </button>
+                <div className="tasks-header-actions">
+                  <button
+                    type="button"
+                    className="refresh-button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    aria-label="Refresh from Google Sheets"
+                    title="Refresh"
+                  >
+                    ↻
+                  </button>
+                  <button onClick={handleNewTask} className="btn btn-primary">
+                    + New Task
+                  </button>
+                </div>
               </div>
 
               <div className="tasks-filters">

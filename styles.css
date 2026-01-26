@@ -1313,6 +1313,12 @@ a {
     gap: 20px;
 }
 
+.tasks-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .tasks-filters {
     margin-bottom: 20px;
 }

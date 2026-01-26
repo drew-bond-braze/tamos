@@ -773,6 +773,23 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     return 'Unknown'
   }
 
+  const formatUpdateAuthor = (update) => {
+    const rawName =
+      update?.userName ||
+      update?.user_name ||
+      update?.author ||
+      update?.userEmail ||
+      update?.user_email ||
+      'Unknown'
+
+    if (!rawName.includes('@')) return rawName
+
+    const localPart = rawName.split('@')[0]
+    const parts = localPart.split(/[._-]+/).filter(Boolean)
+    if (parts.length === 0) return rawName
+    return parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+  }
+
   const syncUpdateToSheet = async (updateRecord, { method = 'POST' } = {}) => {
     const userId = session?.user?.id || session?.user?.userId || session?.user?.user_id || ''
     if (method === 'DELETE') {
@@ -908,7 +925,7 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     try {
       const update = storageManager.createTaskUpdate({
         taskId: task.id,
-        author: session.user?.email || session.user?.name || 'Unknown',
+        author: buildUpdateUserName(),
         updateType: newUpdate.updateType,
         body: newUpdate.body,
         statusAfter: newUpdate.statusAfter || null
@@ -981,7 +998,7 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
                   return (
                     <div key={update.id} className="timeline-item">
                       <div className="timeline-header">
-                        <strong>{update.author}</strong>
+                        <strong>{formatUpdateAuthor(update)}</strong>
                         <span className="timeline-type">{update.updateType}</span>
                         <div className="timeline-meta">
                           <span className="timeline-date">

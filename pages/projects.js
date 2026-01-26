@@ -54,6 +54,15 @@ const mergeListsById = (...lists) => {
   return Array.from(merged.values())
 }
 
+const pruneLocalProjectsAgainstSheet = async (storageManager, localProjects, sheetProjects) => {
+  if (!storageManager || !Array.isArray(sheetProjects)) return
+  const sheetProjectIds = new Set(sheetProjects.map((project) => project?.id).filter(Boolean))
+  const staleProjects = (localProjects || []).filter((project) => project?.id && !sheetProjectIds.has(project.id))
+  for (const project of staleProjects) {
+    await storageManager.deleteProject(project.id)
+  }
+}
+
 export default function Projects() {
   const { data: session, status } = useSession()
   const [storageManager, setStorageManager] = useState(null)
@@ -98,9 +107,15 @@ export default function Projects() {
         'summary'
       )
 
-      const nextProjects = summary?.projects ?? cachedData.projects ?? []
+      const sheetProjects = summary?.projects
+      const nextProjects = sheetProjects ?? cachedData.projects ?? []
       const nextTasks = summary?.tasks ?? cachedData.tasks ?? []
       const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? []
+
+      if (storageManager && Array.isArray(sheetProjects)) {
+        const localProjects = await storageManager.getProjects()
+        await pruneLocalProjectsAgainstSheet(storageManager, localProjects, sheetProjects)
+      }
 
       setProjects(nextProjects)
       setTasks(nextTasks)
@@ -128,9 +143,8 @@ export default function Projects() {
       setAccounts(cached.accounts || cached.tamUnits || [])
     }
 
-    if (cached && isCacheFresh(cached)) return
     loadData(userId, cached)
-  }, [status, session?.user?.id])
+  }, [status, session?.user?.id, storageManager])
 
   const toggleProject = (projectId) => {
     setExpandedProjects((prev) => ({

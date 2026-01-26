@@ -2,11 +2,67 @@ import { useSession, signIn, signOut } from "next-auth/react"
 import { useRouter } from "next/router"
 import Link from "next/link"
 import Head from "next/head"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const buildSheetCacheKey = (userId) => `tamos_sheet_cache_${userId}`
+
+  const writeSheetCache = (userId, data) => {
+    if (typeof window === "undefined" || !userId) return
+    try {
+      localStorage.setItem(
+        buildSheetCacheKey(userId),
+        JSON.stringify({ ...data, cachedAt: Date.now() })
+      )
+    } catch (error) {
+      console.error('Error writing dashboard cache:', error)
+    }
+  }
+
+  const fetchSheetData = async (url, label) => {
+    try {
+      const response = await fetch(url, { method: 'GET' })
+      if (!response.ok) {
+        console.error(`Failed to fetch ${label}:`, response.statusText)
+        return null
+      }
+      return await response.json()
+    } catch (error) {
+      console.error(`Network error fetching ${label}:`, error)
+      return null
+    }
+  }
+
+  const handleRefresh = async () => {
+    const userId = session?.user?.id
+    if (!userId) return
+
+    setIsRefreshing(true)
+    try {
+      const encodedUserId = encodeURIComponent(userId)
+      const [summary, updates] = await Promise.all([
+        fetchSheetData(`/api/google_sheets/summary?userId=${encodedUserId}&force=1`, 'summary'),
+        fetchSheetData(`/api/google_sheets/updates?userId=${encodedUserId}`, 'updates')
+      ])
+
+      if (!summary) return
+
+      writeSheetCache(userId, {
+        accounts: summary?.accounts ?? [],
+        projects: summary?.projects ?? [],
+        tasks: summary?.tasks ?? [],
+        updates: Array.isArray(updates) ? updates : []
+      })
+    } catch (error) {
+      console.error('Error refreshing sheet data:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   useEffect(() => {
     if (status === "authenticated" && session) {
@@ -107,6 +163,16 @@ export default function Home() {
                 <p>You have 3 tasks due today and 2 projects at risk.</p>
               </div>
               <div className="dashboard-user">
+                <button
+                  type="button"
+                  className="refresh-button"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  aria-label="Refresh from Google Sheets"
+                  title="Refresh"
+                >
+                  ↻
+                </button>
                 <span>{session.user?.name || session.user?.email}</span>
                 <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
                 <button

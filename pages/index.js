@@ -157,11 +157,7 @@ export default function Home() {
 
         <div className="app-main">
           <main className="main-content">
-            <div className="dashboard-header">
-              <div>
-                <h1>Welcome back, {session.user?.name || 'there'}</h1>
-                <p>You have 3 tasks due today and 2 projects at risk.</p>
-              </div>
+            <div className="page-actions">
               <div className="dashboard-user">
                 <button
                   type="button"
@@ -181,6 +177,12 @@ export default function Home() {
                 >
                   Sign out
                 </button>
+              </div>
+            </div>
+            <div className="dashboard-header">
+              <div>
+                <h1>Welcome back, {session.user?.name || 'there'}</h1>
+                <p>You have 3 tasks due today and 2 projects at risk.</p>
               </div>
             </div>
 

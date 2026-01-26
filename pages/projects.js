@@ -293,11 +293,7 @@ export default function Projects() {
         <div className="app-main">
           <main className="main-content">
             <div className="page-container">
-              <div className="dashboard-header">
-                <div>
-                  <h1>My Projects</h1>
-                  <p>Track projects and roll up the tasks underneath each one.</p>
-                </div>
+              <div className="page-actions">
                 <div className="dashboard-user">
                   <button
                     type="button"
@@ -317,6 +313,13 @@ export default function Projects() {
                   >
                     Sign out
                   </button>
+                </div>
+              </div>
+
+              <div className="dashboard-header">
+                <div>
+                  <h1>My Projects</h1>
+                  <p>Track projects and roll up the tasks underneath each one.</p>
                 </div>
               </div>
 

@@ -247,11 +247,7 @@ export default function Accounts() {
         <div className="app-main">
           <main className="main-content">
             <div className="page-container">
-              <div className="dashboard-header">
-                <div>
-                  <h1>My Accounts</h1>
-                  <p>See projects by account and roll up tasks under each project.</p>
-                </div>
+              <div className="page-actions">
                 <div className="dashboard-user">
                   <button
                     type="button"
@@ -271,6 +267,13 @@ export default function Accounts() {
                   >
                     Sign out
                   </button>
+                </div>
+              </div>
+
+              <div className="dashboard-header">
+                <div>
+                  <h1>My Accounts</h1>
+                  <p>See projects by account and roll up tasks under each project.</p>
                 </div>
               </div>
 

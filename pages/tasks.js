@@ -649,11 +649,7 @@ export default function Tasks() {
           <main className="main-content">
             <div className="page-container">
               <div className="tasks-container">
-                <div className="dashboard-header">
-                  <div>
-                    <h1>Task Tracker</h1>
-                    <p>Track tasks and projects per client</p>
-                  </div>
+                <div className="page-actions">
                   <div className="dashboard-user">
                     <button
                       type="button"
@@ -673,6 +669,13 @@ export default function Tasks() {
                     >
                       Sign out
                     </button>
+                  </div>
+                </div>
+
+                <div className="dashboard-header">
+                  <div>
+                    <h1>Task Tracker</h1>
+                    <p>Track tasks and projects per client</p>
                   </div>
                 </div>
 

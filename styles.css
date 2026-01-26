@@ -1595,6 +1595,12 @@ a {
     gap: 6px;
 }
 
+.timeline-actions .btn,
+.timeline-edit-actions .btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+}
+
 .timeline-body {
     color: #e2e8f0;
     line-height: 1.6;

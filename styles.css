@@ -687,6 +687,14 @@ a {
     border-color: #27ae60;
 }
 
+.task-form .form-group input:valid {
+    border-color: #334155;
+}
+
+.task-form .form-group input.input-filled:valid {
+    border-color: #27ae60;
+}
+
 .task-form input:not(.input-touched):invalid {
     border-color: #334155;
     box-shadow: none;

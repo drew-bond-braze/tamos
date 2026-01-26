@@ -336,14 +336,21 @@ export default function Tasks() {
           return dueDate <= weekFromNow && dueDate >= now
         })
         break
-      case 'recently-updated':
+      case 'recently-updated': {
         const daysAgo = new Date()
         daysAgo.setDate(daysAgo.getDate() - 7)
         filtered = filtered.filter(t => {
-          if (!t.lastUpdateAt) return false
-          return new Date(t.lastUpdateAt) >= daysAgo
+          const updatedAt = t.lastUpdateAt || t.updatedAt
+          if (!updatedAt) return false
+          return new Date(updatedAt) >= daysAgo
+        })
+        filtered.sort((a, b) => {
+          const aUpdated = new Date(a.lastUpdateAt || a.updatedAt || 0)
+          const bUpdated = new Date(b.lastUpdateAt || b.updatedAt || 0)
+          return bUpdated - aUpdated
         })
         break
+      }
       case 'by-client':
         if (selectedAccount !== 'all') {
           filtered = filtered.filter(t => (t.accountId || t.tamUnitId) === selectedAccount)

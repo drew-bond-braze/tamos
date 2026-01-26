@@ -157,126 +157,128 @@ export default function Home() {
 
         <div className="app-main">
           <main className="main-content">
-            <div className="page-actions">
-              <div className="dashboard-user">
-                <button
-                  type="button"
-                  className="refresh-button"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  aria-label="Refresh from Google Sheets"
-                  title="Refresh"
-                >
-                  ↻
-                </button>
-                <span>{session.user?.name || session.user?.email}</span>
-                <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
-                <button
-                  onClick={() => signOut({ callbackUrl: '/' })}
-                  className="btn btn-secondary auth-button"
-                >
-                  Sign out
-                </button>
+            <div className="page-container">
+              <div className="page-actions">
+                <div className="dashboard-user">
+                  <button
+                    type="button"
+                    className="refresh-button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    aria-label="Refresh from Google Sheets"
+                    title="Refresh"
+                  >
+                    ↻
+                  </button>
+                  <span>{session.user?.name || session.user?.email}</span>
+                  <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                  <button
+                    onClick={() => signOut({ callbackUrl: '/' })}
+                    className="btn btn-secondary auth-button"
+                  >
+                    Sign out
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="dashboard-header">
-              <div>
-                <h1>Welcome back, {session.user?.name || 'there'}</h1>
-                <p>You have 3 tasks due today and 2 projects at risk.</p>
+              <div className="dashboard-header">
+                <div>
+                  <h1>Welcome back, {session.user?.name || 'there'}</h1>
+                  <p>You have 3 tasks due today and 2 projects at risk.</p>
+                </div>
               </div>
-            </div>
 
-            <div className="dashboard-section">
-              <section className="card">
-                <div className="card-title">Upcoming Deadlines</div>
-                <div className="card-list card-list-row">
-                  <div className="card-list-item">
-                    <div className="card-item-title">Yum! US QBR</div>
-                    <div className="card-item-subtitle">Project due in 1 week</div>
+              <div className="dashboard-section">
+                <section className="card">
+                  <div className="card-title">Upcoming Deadlines</div>
+                  <div className="card-list card-list-row">
+                    <div className="card-list-item">
+                      <div className="card-item-title">Yum! US QBR</div>
+                      <div className="card-item-subtitle">Project due in 1 week</div>
+                    </div>
+                    <div className="card-list-item">
+                      <div className="card-item-title">Walmart Onboarding</div>
+                      <div className="card-item-subtitle">Project due in 2 weeks</div>
+                    </div>
+                    <div className="card-list-item">
+                      <div className="card-item-title">Taco Bell Renewal</div>
+                      <div className="card-item-subtitle">Project due in 3 weeks</div>
+                    </div>
                   </div>
-                  <div className="card-list-item">
-                    <div className="card-item-title">Walmart Onboarding</div>
-                    <div className="card-item-subtitle">Project due in 2 weeks</div>
-                  </div>
-                  <div className="card-list-item">
-                    <div className="card-item-title">Taco Bell Renewal</div>
-                    <div className="card-item-subtitle">Project due in 3 weeks</div>
-                  </div>
-                </div>
-              </section>
-            </div>
+                </section>
+              </div>
 
-            <div className="dashboard-section">
-              <section className="card">
-                <div className="card-title">Today's Focus</div>
-                <div className="focus-list">
-                  <label className="focus-item">
-                    <input type="checkbox" />
-                    <span>Finalize Q3 Business Review deck for Yum! US</span>
-                    <span className="pill danger">Due Today</span>
-                  </label>
-                  <label className="focus-item">
-                    <input type="checkbox" />
-                    <span>Send follow-up email to Walmart stakeholders</span>
-                    <span className="pill danger">Due Today</span>
-                  </label>
-                  <label className="focus-item">
-                    <input type="checkbox" />
-                    <span>Prepare agenda for Spark Driver sync</span>
-                    <span className="pill danger">Due Today</span>
-                  </label>
-                  <label className="focus-item">
-                    <input type="checkbox" />
-                    <span>Review BEES Global usage data</span>
-                    <span className="pill neutral">Due Tomorrow</span>
-                  </label>
-                </div>
-              </section>
-            </div>
+              <div className="dashboard-section">
+                <section className="card">
+                  <div className="card-title">Today's Focus</div>
+                  <div className="focus-list">
+                    <label className="focus-item">
+                      <input type="checkbox" />
+                      <span>Finalize Q3 Business Review deck for Yum! US</span>
+                      <span className="pill danger">Due Today</span>
+                    </label>
+                    <label className="focus-item">
+                      <input type="checkbox" />
+                      <span>Send follow-up email to Walmart stakeholders</span>
+                      <span className="pill danger">Due Today</span>
+                    </label>
+                    <label className="focus-item">
+                      <input type="checkbox" />
+                      <span>Prepare agenda for Spark Driver sync</span>
+                      <span className="pill danger">Due Today</span>
+                    </label>
+                    <label className="focus-item">
+                      <input type="checkbox" />
+                      <span>Review BEES Global usage data</span>
+                      <span className="pill neutral">Due Tomorrow</span>
+                    </label>
+                  </div>
+                </section>
+              </div>
 
-            <div className="dashboard-grid">
-              <section className="card card-wide">
-                <div className="card-title">My Accounts</div>
-                <div className="units-grid">
-                  <div className="unit-card">
-                    <div>
-                      <div className="card-item-title">Spark Driver</div>
-                      <div className="card-item-subtitle">4 Active Projects</div>
+              <div className="dashboard-grid">
+                <section className="card card-wide">
+                  <div className="card-title">My Accounts</div>
+                  <div className="units-grid">
+                    <div className="unit-card">
+                      <div>
+                        <div className="card-item-title">Spark Driver</div>
+                        <div className="card-item-subtitle">4 Active Projects</div>
+                      </div>
+                      <span className="pill danger">At Risk</span>
                     </div>
-                    <span className="pill danger">At Risk</span>
-                  </div>
-                  <div className="unit-card">
-                    <div>
-                      <div className="card-item-title">Walmart</div>
-                      <div className="card-item-subtitle">2 Active Projects</div>
+                    <div className="unit-card">
+                      <div>
+                        <div className="card-item-title">Walmart</div>
+                        <div className="card-item-subtitle">2 Active Projects</div>
+                      </div>
+                      <span className="pill warning">Needs Attention</span>
                     </div>
-                    <span className="pill warning">Needs Attention</span>
-                  </div>
-                  <div className="unit-card">
-                    <div>
-                      <div className="card-item-title">BEES Global</div>
-                      <div className="card-item-subtitle">3 Active Projects</div>
+                    <div className="unit-card">
+                      <div>
+                        <div className="card-item-title">BEES Global</div>
+                        <div className="card-item-subtitle">3 Active Projects</div>
+                      </div>
+                      <span className="pill success">On Track</span>
                     </div>
-                    <span className="pill success">On Track</span>
-                  </div>
-                  <div className="unit-card">
-                    <div>
-                      <div className="card-item-title">Yum! US</div>
-                      <div className="card-item-subtitle">1 Active Project</div>
+                    <div className="unit-card">
+                      <div>
+                        <div className="card-item-title">Yum! US</div>
+                        <div className="card-item-subtitle">1 Active Project</div>
+                      </div>
+                      <span className="pill success">On Track</span>
                     </div>
-                    <span className="pill success">On Track</span>
                   </div>
-                </div>
-              </section>
-              <section className="card">
-                <div className="card-title">Recent Activity</div>
-                <div className="card-list">
-                  <div className="card-list-item">Sara assigned Bundle "TAM Sidecar(e) Kirat" <span className="muted">Just now</span></div>
-                  <div className="card-list-item">You completed task "Send follow-up to Taco Bell" <span className="muted">2h ago</span></div>
-                  <div className="card-list-item">You added a new note to "Yum! US" <span className="muted">Yesterday</span></div>
-                  <div className="card-list-item">You updated the status of "Spark Driver" to At Risk <span className="muted">Yesterday</span></div>
-                </div>
-              </section>
+                </section>
+                <section className="card">
+                  <div className="card-title">Recent Activity</div>
+                  <div className="card-list">
+                    <div className="card-list-item">Sara assigned Bundle "TAM Sidecar(e) Kirat" <span className="muted">Just now</span></div>
+                    <div className="card-list-item">You completed task "Send follow-up to Taco Bell" <span className="muted">2h ago</span></div>
+                    <div className="card-list-item">You added a new note to "Yum! US" <span className="muted">Yesterday</span></div>
+                    <div className="card-list-item">You updated the status of "Spark Driver" to At Risk <span className="muted">Yesterday</span></div>
+                  </div>
+                </section>
+              </div>
             </div>
           </main>
 

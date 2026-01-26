@@ -162,26 +162,6 @@ export default function Home() {
                 <h1>Welcome back, {session.user?.name || 'there'}</h1>
                 <p>You have 3 tasks due today and 2 projects at risk.</p>
               </div>
-              <div className="dashboard-user">
-                <button
-                  type="button"
-                  className="refresh-button"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  aria-label="Refresh from Google Sheets"
-                  title="Refresh"
-                >
-                  ↻
-                </button>
-                <span>{session.user?.name || session.user?.email}</span>
-                <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
-                <button
-                  onClick={() => signOut({ callbackUrl: '/' })}
-                  className="btn btn-secondary auth-button"
-                >
-                  Sign out
-                </button>
-              </div>
             </div>
 
             <div className="dashboard-section">

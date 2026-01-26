@@ -279,7 +279,7 @@ export default function Projects() {
         <nav className="navbar">
           <div className="nav-container">
             <div className="nav-logo">
-              <h1>TAM OS</h1>
+              <h1>TAMos</h1>
             </div>
             <div className="nav-menu">
               <Link href="/" className="nav-link">My Dashboard</Link>

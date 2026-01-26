@@ -157,6 +157,38 @@ a {
     padding: 0 20px 24px;
 }
 
+.dashboard-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.refresh-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: transparent;
+    color: #cbd5f5;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.refresh-button:hover {
+    background: #1e293b;
+    color: #f8fafc;
+    border-color: #64748b;
+}
+
+.refresh-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .dashboard-header h1 {
     font-size: 2rem;
     color: #f8fafc;

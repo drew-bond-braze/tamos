@@ -170,6 +170,44 @@ export async function getUpdatesByTaskId(taskId) {
   }
 }
 
+export async function getUpdatesByUserId(userId) {
+  try {
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    const range = 'updates!A:Z';
+
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return [];
+
+    const headers = rows[0];
+    const userIdIndex = findHeaderIndex(headers, ['userId', 'user_id']);
+    if (userIdIndex === -1) {
+      throw new Error("Column 'userId' not found in updates sheet");
+    }
+
+    const userUpdates = rows.slice(1).filter(row => String(row[userIdIndex]) === String(userId));
+
+    return userUpdates.map(row => {
+      return headers.reduce((acc, header, index) => {
+        acc[header] = row[index];
+        return acc;
+      }, {});
+    });
+  } catch (error) {
+    console.error('Error fetching sheet updates:', error);
+    throw error;
+  }
+}
+
 export async function addUpdate(updateData) {
   try {
     const auth = new google.auth.GoogleAuth({
@@ -308,10 +346,11 @@ export async function deleteUpdate(updateId) {
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     const { taskId } = req.query;
-    if (!taskId) return res.status(400).json({ error: 'Task ID required' });
+    const { userId } = req.query;
+    if (!taskId && !userId) return res.status(400).json({ error: 'Task ID or User ID required' });
 
     try {
-      const data = await getUpdatesByTaskId(taskId);
+      const data = taskId ? await getUpdatesByTaskId(taskId) : await getUpdatesByUserId(userId);
       return res.status(200).json(data);
     } catch (error) {
       return res.status(500).json({ error: 'Fetch failed', details: error.message });

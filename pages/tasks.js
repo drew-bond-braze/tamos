@@ -586,13 +586,6 @@ export default function Tasks() {
                             <td>{getPriorityBadge(task.priority)}</td>
                             <td>
                               <div className="owner-cell">
-                                <span className="owner-avatar">
-                                  {ownerProfile.avatarUrl ? (
-                                    <img src={ownerProfile.avatarUrl} alt={`${ownerProfile.name} avatar`} />
-                                  ) : (
-                                    <span className="owner-initials">{ownerProfile.initials}</span>
-                                  )}
-                                </span>
                                 <span className="owner-name">{ownerProfile.name}</span>
                               </div>
                             </td>
@@ -945,13 +938,6 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
         <div className="task-drawer-header">
           <div>
             <div className="task-drawer-title">
-              <span className="owner-avatar">
-                {ownerProfile.avatarUrl ? (
-                  <img src={ownerProfile.avatarUrl} alt={`${ownerProfile.name} avatar`} />
-                ) : (
-                  <span className="owner-initials">{ownerProfile.initials}</span>
-                )}
-              </span>
               <h2>{taskTitle}</h2>
             </div>
             <p className="task-drawer-meta">

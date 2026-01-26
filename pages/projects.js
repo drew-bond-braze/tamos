@@ -43,6 +43,17 @@ const isCacheFresh = (cached) => {
   return Date.now() - cachedAt < CACHE_TTL_MS
 }
 
+const mergeListsById = (...lists) => {
+  const merged = new Map()
+  lists.forEach((list) => {
+    (list || []).forEach((item) => {
+      if (!item?.id) return
+      merged.set(item.id, item)
+    })
+  })
+  return Array.from(merged.values())
+}
+
 export default function Projects() {
   const { data: session, status } = useSession()
   const [storageManager, setStorageManager] = useState(null)
@@ -77,7 +88,7 @@ export default function Projects() {
     }
   }
 
-  const loadData = async (userId, cachedData = {}) => {
+  const loadData = async (userId, cachedData = {}, localProjects = []) => {
     try {
       if (!userId) return
 
@@ -87,7 +98,7 @@ export default function Projects() {
         'summary'
       )
 
-      const nextProjects = summary?.projects ?? cachedData.projects ?? []
+      const nextProjects = mergeListsById(localProjects, cachedData.projects, summary?.projects)
       const nextTasks = summary?.tasks ?? cachedData.tasks ?? []
       const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? []
 
@@ -118,8 +129,14 @@ export default function Projects() {
     }
 
     if (cached && isCacheFresh(cached)) return
-    loadData(userId, cached)
-  }, [status, session?.user?.id])
+
+    const loadWithLocalProjects = async () => {
+      const localProjects = storageManager ? await storageManager.getProjects() : []
+      await loadData(userId, cached, localProjects)
+    }
+
+    loadWithLocalProjects()
+  }, [status, session?.user?.id, storageManager])
 
   const toggleProject = (projectId) => {
     setExpandedProjects((prev) => ({

@@ -655,132 +655,134 @@ export default function Tasks() {
             </button>
           </div>
           <main className="main-content">
-            <div className="tasks-container">
-              <div className="tasks-header">
-                <div>
-                  <h1 className="page-title">Task Tracker</h1>
-                  <p className="page-subtitle">Track tasks and projects per client</p>
-                </div>
-                <div className="tasks-header-actions">
-                  <button
-                    type="button"
-                    className="refresh-button"
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                    aria-label="Refresh from Google Sheets"
-                    title="Refresh"
-                  >
-                    ↻
-                  </button>
-                  <button onClick={handleNewTask} className="btn btn-primary">
-                    + New Task
-                  </button>
-                </div>
-              </div>
-
-              <div className="tasks-filters">
-                <div className="filter-tabs">
-                  <button 
-                    className={filterView === 'all' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('all')}
-                  >
-                    All Tasks
-                  </button>
-                  <button 
-                    className={filterView === 'my-tasks' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('my-tasks')}
-                  >
-                    My Tasks
-                  </button>
-                  <button 
-                    className={filterView === 'due-this-week' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('due-this-week')}
-                  >
-                    Due This Week
-                  </button>
-                  <button 
-                    className={filterView === 'recently-updated' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('recently-updated')}
-                  >
-                    Recently Updated
-                  </button>
-                  <button 
-                    className={filterView === 'by-client' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('by-client')}
-                  >
-                    By Account
-                  </button>
-                </div>
-
-                {filterView === 'by-client' && (
-                  <div className="client-filter">
-                    <select 
-                      value={selectedAccount}
-                      onChange={(e) => setSelectedAccount(e.target.value)}
-                      className="client-select"
-                    >
-                      <option value="all">All Accounts</option>
-                      {accounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.accountName || account.name}
-                        </option>
-                      ))}
-                    </select>
+            <div className="page-container">
+              <div className="tasks-container">
+                <div className="dashboard-header">
+                  <div>
+                    <h1>Task Tracker</h1>
+                    <p>Track tasks and projects per client</p>
                   </div>
-                )}
-              </div>
+                  <div className="dashboard-header-actions">
+                    <button
+                      type="button"
+                      className="refresh-button"
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      aria-label="Refresh from Google Sheets"
+                      title="Refresh"
+                    >
+                      ↻
+                    </button>
+                    <button onClick={handleNewTask} className="btn btn-primary">
+                      + New Task
+                    </button>
+                  </div>
+                </div>
 
-              <div className="tasks-table-container">
-                <table className="tasks-table">
-                  <thead>
-                    <tr>
-                      <th>Account</th>
-                      <th>Project</th>
-                      <th>Task</th>
-                      <th>Status</th>
-                      <th>Due Date</th>
-                      <th>Priority</th>
-                      <th>Owner</th>
-                      <th>Last Update</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTasks.length === 0 ? (
+                <div className="tasks-filters">
+                  <div className="filter-tabs">
+                    <button 
+                      className={filterView === 'all' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('all')}
+                    >
+                      All Tasks
+                    </button>
+                    <button 
+                      className={filterView === 'my-tasks' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('my-tasks')}
+                    >
+                      My Tasks
+                    </button>
+                    <button 
+                      className={filterView === 'due-this-week' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('due-this-week')}
+                    >
+                      Due This Week
+                    </button>
+                    <button 
+                      className={filterView === 'recently-updated' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('recently-updated')}
+                    >
+                      Recently Updated
+                    </button>
+                    <button 
+                      className={filterView === 'by-client' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('by-client')}
+                    >
+                      By Account
+                    </button>
+                  </div>
+
+                  {filterView === 'by-client' && (
+                    <div className="client-filter">
+                      <select 
+                        value={selectedAccount}
+                        onChange={(e) => setSelectedAccount(e.target.value)}
+                        className="client-select"
+                      >
+                        <option value="all">All Accounts</option>
+                        {accounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.accountName || account.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="tasks-table-container">
+                  <table className="tasks-table">
+                    <thead>
                       <tr>
-                        <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
-                          <p>No tasks found. <button onClick={handleNewTask} className="btn-link">Create your first task</button></p>
-                        </td>
+                        <th>Account</th>
+                        <th>Project</th>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th>Due Date</th>
+                        <th>Priority</th>
+                        <th>Owner</th>
+                        <th>Last Update</th>
                       </tr>
-                    ) : (
-                      filteredTasks.map(task => {
-                        const ownerProfile = getOwnerProfile(task, session)
-                        return (
-                          <tr 
-                            key={task.id} 
-                            className="task-row"
-                            onClick={() => openTaskDetail(task)}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            <td>{task.accountName || getAccountName(task.accountId || task.tamUnitId)}</td>
-                            <td>{task.projectName || getProjectName(task.projectId)}</td>
-                            <td className="task-title-cell">
-                              <strong>{task.title || task.name || task.taskName || task.task || 'Untitled task'}</strong>
-                            </td>
-                            <td>{getStatusBadge(task.status)}</td>
-                            <td>{formatDate(task.dueDate || task.dueAt || task.date)}</td>
-                            <td>{getPriorityBadge(task.priority)}</td>
-                            <td>
-                              <div className="owner-cell">
-                                <span className="owner-name">{ownerProfile.name}</span>
-                              </div>
-                            </td>
-                            <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
-                          </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredTasks.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
+                            <p>No tasks found. <button onClick={handleNewTask} className="btn-link">Create your first task</button></p>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredTasks.map(task => {
+                          const ownerProfile = getOwnerProfile(task, session)
+                          return (
+                            <tr 
+                              key={task.id} 
+                              className="task-row"
+                              onClick={() => openTaskDetail(task)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <td>{task.accountName || getAccountName(task.accountId || task.tamUnitId)}</td>
+                              <td>{task.projectName || getProjectName(task.projectId)}</td>
+                              <td className="task-title-cell">
+                                <strong>{task.title || task.name || task.taskName || task.task || 'Untitled task'}</strong>
+                              </td>
+                              <td>{getStatusBadge(task.status)}</td>
+                              <td>{formatDate(task.dueDate || task.dueAt || task.date)}</td>
+                              <td>{getPriorityBadge(task.priority)}</td>
+                              <td>
+                                <div className="owner-cell">
+                                  <span className="owner-name">{ownerProfile.name}</span>
+                                </div>
+                              </td>
+                              <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </main>

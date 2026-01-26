@@ -254,93 +254,95 @@ export default function Accounts() {
             </button>
           </div>
           <main className="main-content">
-            <div className="dashboard-header">
-              <div>
-                <h1>My Accounts</h1>
-                <p>See projects by account and roll up tasks under each project.</p>
+            <div className="page-container">
+              <div className="dashboard-header">
+                <div>
+                  <h1>My Accounts</h1>
+                  <p>See projects by account and roll up tasks under each project.</p>
+                </div>
+                <div className="dashboard-header-actions">
+                  <button
+                    type="button"
+                    className="refresh-button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    aria-label="Refresh from Google Sheets"
+                    title="Refresh"
+                  >
+                    {isRefreshing ? '↻' : '↻'}
+                  </button>
+                </div>
               </div>
-              <div className="dashboard-header-actions">
-                <button
-                  type="button"
-                  className="refresh-button"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  aria-label="Refresh from Google Sheets"
-                  title="Refresh"
-                >
-                  {isRefreshing ? '↻' : '↻'}
-                </button>
-              </div>
-            </div>
 
-            <section className="card">
-              <div className="card-title">Accounts</div>
-              <div className="card-list">
-                {accounts.map((account) => {
-                  const accountProjects = getAccountProjects(account)
-                  const accountName = account.accountName || account.name || 'Account'
-                  return (
-                    <div key={account.id} className="card-list-item">
-                      <div className="disclosure-row">
-                        <div>
-                          <div className="card-item-title">{accountName}</div>
-                          <div className="disclosure-meta">{accountProjects.length} projects</div>
+              <section className="card">
+                <div className="card-title">Accounts</div>
+                <div className="card-list">
+                  {accounts.map((account) => {
+                    const accountProjects = getAccountProjects(account)
+                    const accountName = account.accountName || account.name || 'Account'
+                    return (
+                      <div key={account.id} className="card-list-item">
+                        <div className="disclosure-row">
+                          <div>
+                            <div className="card-item-title">{accountName}</div>
+                            <div className="disclosure-meta">{accountProjects.length} projects</div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-small"
+                            onClick={() => toggleAccount(account.id)}
+                          >
+                            {expandedAccounts[account.id] ? 'Hide projects' : 'View projects'}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-small"
-                          onClick={() => toggleAccount(account.id)}
-                        >
-                          {expandedAccounts[account.id] ? 'Hide projects' : 'View projects'}
-                        </button>
-                      </div>
-                      {expandedAccounts[account.id] && (
-                        <div className="nested-list">
-                          {accountProjects.length === 0 ? (
-                            <div className="nested-item muted">No projects yet.</div>
-                          ) : (
-                            accountProjects.map((project) => {
-                              const projectTasks = getProjectTasks(project.id)
-                              return (
-                                <div key={project.id} className="nested-item">
-                                  <div className="disclosure-row">
-                                    <div>
-                                      <div className="card-item-title">{project.name}</div>
-                                      <div className="disclosure-meta">{projectTasks.length} tasks</div>
+                        {expandedAccounts[account.id] && (
+                          <div className="nested-list">
+                            {accountProjects.length === 0 ? (
+                              <div className="nested-item muted">No projects yet.</div>
+                            ) : (
+                              accountProjects.map((project) => {
+                                const projectTasks = getProjectTasks(project.id)
+                                return (
+                                  <div key={project.id} className="nested-item">
+                                    <div className="disclosure-row">
+                                      <div>
+                                        <div className="card-item-title">{project.name}</div>
+                                        <div className="disclosure-meta">{projectTasks.length} tasks</div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary btn-small"
+                                        onClick={() => toggleProject(project.id)}
+                                      >
+                                        {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
+                                      </button>
                                     </div>
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary btn-small"
-                                      onClick={() => toggleProject(project.id)}
-                                    >
-                                      {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
-                                    </button>
+                                    {expandedProjects[project.id] && (
+                                      <div className="nested-list">
+                                        {projectTasks.length === 0 ? (
+                                          <div className="nested-item muted">No tasks assigned yet.</div>
+                                        ) : (
+                                          projectTasks.map((task) => (
+                                            <div key={task.id} className="nested-item">
+                                              <span>{task.name}</span>
+                                              <span className="muted">{task.status}</span>
+                                            </div>
+                                          ))
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
-                                  {expandedProjects[project.id] && (
-                                    <div className="nested-list">
-                                      {projectTasks.length === 0 ? (
-                                        <div className="nested-item muted">No tasks assigned yet.</div>
-                                      ) : (
-                                        projectTasks.map((task) => (
-                                          <div key={task.id} className="nested-item">
-                                            <span>{task.name}</span>
-                                            <span className="muted">{task.status}</span>
-                                          </div>
-                                        ))
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            </div>
 
             {/* <section className="card">
               <div className="card-title">Add Account</div>

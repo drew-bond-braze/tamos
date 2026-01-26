@@ -300,139 +300,141 @@ export default function Projects() {
             </button>
           </div>
           <main className="main-content">
-            <div className="dashboard-header">
-              <div>
-                <h1>My Projects</h1>
-                <p>Track projects and roll up the tasks underneath each one.</p>
+            <div className="page-container">
+              <div className="dashboard-header">
+                <div>
+                  <h1>My Projects</h1>
+                  <p>Track projects and roll up the tasks underneath each one.</p>
+                </div>
+                <div className="dashboard-header-actions">
+                  <button
+                    type="button"
+                    className="refresh-button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    aria-label="Refresh from Google Sheets"
+                    title="Refresh"
+                  >
+                    ↻
+                  </button>
+                </div>
               </div>
-              <div className="dashboard-header-actions">
-                <button
-                  type="button"
-                  className="refresh-button"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  aria-label="Refresh from Google Sheets"
-                  title="Refresh"
-                >
-                  ↻
-                </button>
-              </div>
-            </div>
 
-            <section className="card">
-              <div className="card-title">Projects</div>
-              <div className="card-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-xs"
-                  onClick={() => setShowNewProject(true)}
-                >
-                  + New Project
-                </button>
-              </div>
-              {showNewProject && (
-                <div className="modal-overlay" onClick={() => setShowNewProject(false)}>
-                  <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>
-                    <div className="modal-header">
-                      <h2>New Project</h2>
-                      <button onClick={() => setShowNewProject(false)} className="btn-close">×</button>
-                    </div>
-                    <div className="task-form">
-                      <div className="form-group">
-                        <label>Project Name *</label>
-                        <input
-                          type="text"
-                          value={newProjectName}
-                          onChange={(e) => setNewProjectName(e.target.value)}
-                          placeholder="Project name"
-                        />
+              <section className="card">
+                <div className="card-title">Projects</div>
+                <div className="card-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-xs"
+                    onClick={() => setShowNewProject(true)}
+                  >
+                    + New Project
+                  </button>
+                </div>
+                {showNewProject && (
+                  <div className="modal-overlay" onClick={() => setShowNewProject(false)}>
+                    <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>
+                      <div className="modal-header">
+                        <h2>New Project</h2>
+                        <button onClick={() => setShowNewProject(false)} className="btn-close">×</button>
                       </div>
-                      <div className="form-group">
-                        <label>Account *</label>
-                        <select
-                          value={newProjectAccount}
-                          onChange={(e) => setNewProjectAccount(e.target.value)}
-                        >
-                          <option value="">Select Account</option>
-                          {accounts.map((account) => (
-                            <option key={account.id} value={account.id}>
-                              {account.accountName || account.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Due Date</label>
-                        <input
-                          type="date"
-                          value={newProjectDueDate}
-                          onChange={(e) => setNewProjectDueDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="form-actions">
-                        <button type="button" className="btn btn-secondary" onClick={() => setShowNewProject(false)}>
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCreateProject}
-                          className="btn btn-primary"
-                          disabled={isCreatingProject}
-                        >
-                          {isCreatingProject ? 'Creating...' : 'Create Project'}
-                        </button>
+                      <div className="task-form">
+                        <div className="form-group">
+                          <label>Project Name *</label>
+                          <input
+                            type="text"
+                            value={newProjectName}
+                            onChange={(e) => setNewProjectName(e.target.value)}
+                            placeholder="Project name"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Account *</label>
+                          <select
+                            value={newProjectAccount}
+                            onChange={(e) => setNewProjectAccount(e.target.value)}
+                          >
+                            <option value="">Select Account</option>
+                            {accounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {account.accountName || account.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Due Date</label>
+                          <input
+                            type="date"
+                            value={newProjectDueDate}
+                            onChange={(e) => setNewProjectDueDate(e.target.value)}
+                          />
+                        </div>
+                        <div className="form-actions">
+                          <button type="button" className="btn btn-secondary" onClick={() => setShowNewProject(false)}>
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCreateProject}
+                            className="btn btn-primary"
+                            disabled={isCreatingProject}
+                          >
+                            {isCreatingProject ? 'Creating...' : 'Create Project'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-
-              <div className="card-list">
-                {visibleProjects.length === 0 && (
-                  <div className="card-list-item">No projects yet.</div>
                 )}
-                {visibleProjects.map((project) => {
-                  const projectTasks = getProjectTasks(project.id)
-                  return (
-                    <div key={project.id} className="card-list-item">
-                      <div className="disclosure-row">
-                        <div>
-                          <div className="card-item-title">{project.name}</div>
-                          <div className="disclosure-meta">
-                            {getAccountName(project.accountId || project.tamUnitId)} • {projectTasks.length} tasks
+
+                <div className="card-list">
+                  {visibleProjects.length === 0 && (
+                    <div className="card-list-item">No projects yet.</div>
+                  )}
+                  {visibleProjects.map((project) => {
+                    const projectTasks = getProjectTasks(project.id)
+                    return (
+                      <div key={project.id} className="card-list-item">
+                        <div className="disclosure-row">
+                          <div>
+                            <div className="card-item-title">{project.name}</div>
+                            <div className="disclosure-meta">
+                              {getAccountName(project.accountId || project.tamUnitId)} • {projectTasks.length} tasks
+                            </div>
                           </div>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-small"
+                            onClick={() => toggleProject(project.id)}
+                          >
+                            {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-small"
-                          onClick={() => toggleProject(project.id)}
-                        >
-                          {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
-                        </button>
+                        {expandedProjects[project.id] && (
+                          <div className="nested-list">
+                            {projectTasks.length === 0 ? (
+                              <div className="nested-item muted">No tasks assigned yet.</div>
+                            ) : (
+                              projectTasks.map((task, index) => {
+                                const taskTitle = task.title || task.name || task.taskName || task.summary || 'Untitled task'
+                                const taskStatus = task.status || task.state || '—'
+                                return (
+                                  <div key={task.id || `${project.id}-${index}`} className="nested-item">
+                                    <span>{taskTitle}</span>
+                                    <span className="muted">{taskStatus}</span>
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {expandedProjects[project.id] && (
-                        <div className="nested-list">
-                          {projectTasks.length === 0 ? (
-                            <div className="nested-item muted">No tasks assigned yet.</div>
-                          ) : (
-                            projectTasks.map((task, index) => {
-                              const taskTitle = task.title || task.name || task.taskName || task.summary || 'Untitled task'
-                              const taskStatus = task.status || task.state || '—'
-                              return (
-                                <div key={task.id || `${project.id}-${index}`} className="nested-item">
-                                  <span>{taskTitle}</span>
-                                  <span className="muted">{taskStatus}</span>
-                                </div>
-                              )
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
+                    )
+                  })}
+                </div>
+              </section>
+            </div>
           </main>
 
           <footer className="footer">

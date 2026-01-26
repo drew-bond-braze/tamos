@@ -148,6 +148,12 @@ a {
     padding: 32px 0;
 }
 
+.page-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
 /* Dashboard layout */
 .dashboard-header {
     display: flex;
@@ -1299,24 +1305,11 @@ a {
 
 /* Task Tracker Styles */
 .tasks-container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 20px;
+    width: 100%;
 }
 
 .tasks-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     margin-bottom: 30px;
-    flex-wrap: wrap;
-    gap: 20px;
-}
-
-.tasks-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
 }
 
 .tasks-filters {

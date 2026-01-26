@@ -291,18 +291,6 @@ export default function Projects() {
         </nav>
 
         <div className="app-main">
-          <div className="page-topbar">
-            <div className="dashboard-user">
-              <span>{session.user?.name || session.user?.email}</span>
-              <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
-              <button
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="btn btn-secondary auth-button"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
           <main className="main-content">
             <div className="page-container">
               <div className="dashboard-header">
@@ -328,6 +316,16 @@ export default function Projects() {
                 >
                   + New Project
                 </button>
+                  <div className="dashboard-user">
+                    <span>{session.user?.name || session.user?.email}</span>
+                    <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                    <button
+                      onClick={() => signOut({ callbackUrl: '/' })}
+                      className="btn btn-secondary auth-button"
+                    >
+                      Sign out
+                    </button>
+                  </div>
                 </div>
               </div>
 

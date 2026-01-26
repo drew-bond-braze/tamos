@@ -646,18 +646,6 @@ export default function Tasks() {
         </nav>
 
         <div className="app-main">
-          <div className="page-topbar">
-            <div className="dashboard-user">
-              <span>{session.user?.name || session.user?.email}</span>
-              <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
-              <button
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="btn btn-secondary auth-button"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
           <main className="main-content">
             <div className="page-container">
               <div className="tasks-container">
@@ -680,6 +668,16 @@ export default function Tasks() {
                     <button onClick={handleNewTask} className="btn btn-primary">
                       + New Task
                     </button>
+                    <div className="dashboard-user">
+                      <span>{session.user?.name || session.user?.email}</span>
+                      <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                      <button
+                        onClick={() => signOut({ callbackUrl: '/' })}
+                        className="btn btn-secondary auth-button"
+                      >
+                        Sign out
+                      </button>
+                    </div>
                   </div>
                 </div>
 

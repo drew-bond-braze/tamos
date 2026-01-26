@@ -325,7 +325,7 @@ export default function Projects() {
                 <div className="card-actions">
                   <button
                     type="button"
-                    className="btn btn-secondary btn-xs"
+                  className="btn btn-primary"
                     onClick={() => setShowNewProject(true)}
                   >
                     + New Project

@@ -1180,6 +1180,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
     owner: resolveOwnerName(),
     description: task?.description || task?.details || task?.nextStep || ''
   })
+  const [titleTouched, setTitleTouched] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
@@ -1439,6 +1440,8 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
               type="text"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onBlur={() => setTitleTouched(true)}
+              className={titleTouched ? 'input-touched' : ''}
               required
             />
           </div>

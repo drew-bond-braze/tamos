@@ -687,6 +687,16 @@ a {
     border-color: #27ae60;
 }
 
+.task-form input:not(.input-touched):invalid {
+    border-color: #334155;
+    box-shadow: none;
+}
+
+.task-form input.input-touched:invalid {
+    border-color: #e74c3c;
+    box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+}
+
 .task-form-modal.is-editing .form-group input:valid:not(:placeholder-shown),
 .task-form-modal.is-editing .form-group select:valid,
 .task-form-modal.is-editing .form-group textarea:valid:not(:placeholder-shown) {

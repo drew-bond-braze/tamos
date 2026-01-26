@@ -57,6 +57,17 @@ const mergeById = (items = [], item) => {
   return nextItems
 }
 
+const mergeListsById = (...lists) => {
+  const merged = new Map()
+  lists.forEach((list) => {
+    (list || []).forEach((item) => {
+      if (!item?.id) return
+      merged.set(item.id, item)
+    })
+  })
+  return Array.from(merged.values())
+}
+
 const getInitials = (name) => {
   if (!name || name === 'Unassigned') return '?'
   const parts = String(name).trim().split(/\s+/).filter(Boolean)
@@ -224,7 +235,7 @@ export default function Tasks() {
       }
 
       const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? localAccounts ?? []
-      const nextProjects = summary?.projects ?? cachedData.projects ?? localProjects ?? []
+      const nextProjects = mergeListsById(localProjects, cachedData.projects, summary?.projects)
       const sheetTasks = summary?.tasks ?? cachedData.tasks ?? []
       const combinedTasks = [...(localTasks || []), ...(sheetTasks || [])]
       const normalizedTasks = combinedTasks.map(normalizeTaskRecord).filter(Boolean)

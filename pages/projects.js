@@ -182,13 +182,23 @@ export default function Projects() {
         dueDate: newProjectDueDate || null
       })
       await storageManager.saveProject(project)
+      const nextProjects = mergeListsById(projects, [project])
+      setProjects(nextProjects)
+
+      const userId = session?.user?.id
+      if (userId) {
+        const cached = readSheetCache(userId) || {}
+        const mergedProjects = mergeListsById(cached.projects, [project])
+        writeSheetCache(userId, {
+          accounts: cached.accounts || cached.tamUnits || accounts || [],
+          projects: mergedProjects,
+          tasks: cached.tasks || tasks || []
+        })
+      }
       setNewProjectName('')
       setNewProjectAccount('')
       setNewProjectDueDate('')
       setShowNewProject(false)
-      if (session?.user?.id) {
-        await loadData(session.user.id, readSheetCache(session.user.id))
-      }
     } catch (error) {
       console.error('Error creating project:', error)
       alert('Error creating project')

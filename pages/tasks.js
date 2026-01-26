@@ -437,9 +437,25 @@ export default function Tasks() {
     setShowTaskForm(true)
   }
 
-  const handleTaskSaved = () => {
+  const handleTaskSaved = (savedTask) => {
     setShowTaskForm(false)
     setEditingTask(null)
+    if (savedTask) {
+      const normalizedTask = normalizeTaskRecord(savedTask)
+      setTasks((prev) => mergeById(prev, normalizedTask))
+
+      const userId = session?.user?.id
+      if (userId) {
+        const cached = readSheetCache(userId) || {}
+        const nextTasks = mergeById(cached.tasks || tasks || [], normalizedTask)
+        writeSheetCache(userId, {
+          accounts: cached.accounts || cached.tamUnits || accounts || [],
+          projects: cached.projects || projects || [],
+          tasks: nextTasks
+        })
+      }
+      return
+    }
     refreshTaskData()
   }
 
@@ -1394,7 +1410,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
           : 'Task saved locally, but failed to sync to Google Sheets.'
         )
       }
-      onSave()
+      onSave(savedTask)
     } catch (error) {
       console.error('Error saving task:', error)
       alert('Error saving task')

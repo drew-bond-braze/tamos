@@ -319,6 +319,7 @@ export default function Tasks() {
 
   const getFilteredTasks = () => {
     let filtered = [...tasks]
+    let hasCustomSort = false
 
     // Apply view filters
     switch (filterView) {
@@ -349,6 +350,7 @@ export default function Tasks() {
           const bUpdated = new Date(b.lastUpdateAt || b.updatedAt || 0)
           return bUpdated - aUpdated
         })
+        hasCustomSort = true
         break
       }
       case 'by-client':
@@ -358,21 +360,23 @@ export default function Tasks() {
         break
     }
 
-    // Sort by priority and due date
-    filtered.sort((a, b) => {
-      const priorityOrder = { 'P0': 0, 'High': 0, 'P1': 1, 'Medium': 1, 'P2': 2, 'Low': 2 }
-      const aPriority = priorityOrder[a.priority] ?? 3
-      const bPriority = priorityOrder[b.priority] ?? 3
-      if (aPriority !== bPriority) return aPriority - bPriority
-      
-      if (a.dueDate && b.dueDate) {
-        return new Date(a.dueDate) - new Date(b.dueDate)
-      }
-      if (a.dueDate) return -1
-      if (b.dueDate) return 1
-      
-      return new Date(b.lastUpdateAt || b.createdAt) - new Date(a.lastUpdateAt || a.createdAt)
-    })
+    if (!hasCustomSort) {
+      // Sort by priority and due date
+      filtered.sort((a, b) => {
+        const priorityOrder = { 'P0': 0, 'High': 0, 'P1': 1, 'Medium': 1, 'P2': 2, 'Low': 2 }
+        const aPriority = priorityOrder[a.priority] ?? 3
+        const bPriority = priorityOrder[b.priority] ?? 3
+        if (aPriority !== bPriority) return aPriority - bPriority
+
+        if (a.dueDate && b.dueDate) {
+          return new Date(a.dueDate) - new Date(b.dueDate)
+        }
+        if (a.dueDate) return -1
+        if (b.dueDate) return 1
+
+        return new Date(b.lastUpdateAt || b.updatedAt || b.createdAt) - new Date(a.lastUpdateAt || a.updatedAt || a.createdAt)
+      })
+    }
 
     return filtered
   }

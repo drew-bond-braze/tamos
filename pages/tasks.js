@@ -703,7 +703,7 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
       userName: update.userName || update.user_name || update.author || update.userEmail || update.user_email || 'Unknown',
       author: update.author || update.userName || update.user_name || update.userEmail || update.user_email || 'Unknown',
       note: update.note || update.body || '',
-      updateType: update.updateType || update.type || 'Comment',
+      updateType: update.updateType || update.type || update.category || 'Comment',
       body: update.body || update.note || '',
       statusAfter: update.statusAfter || update.status_after || null,
       createdAt: createdAt || new Date().toISOString(),
@@ -758,6 +758,62 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
   const taskDescription = task.description || task.details || task.nextStep
   const ownerProfile = getOwnerProfile(task, session)
 
+  const buildUpdateUserName = () => {
+    const firstName =
+      session?.user?.userFirstName ||
+      session?.user?.firstName ||
+      session?.user?.first_name ||
+      session?.user?.given_name ||
+      ''
+    const lastName =
+      session?.user?.userLastName ||
+      session?.user?.lastName ||
+      session?.user?.last_name ||
+      session?.user?.family_name ||
+      ''
+    const fullName = [firstName, lastName].filter(Boolean).join(' ')
+    if (fullName) return fullName
+    if (session?.user?.name) return session.user.name
+    if (session?.user?.email) return session.user.email.split('@')[0]
+    return 'Unknown'
+  }
+
+  const syncUpdateToSheet = async (updateRecord) => {
+    const userId = session?.user?.id || session?.user?.userId || session?.user?.user_id || ''
+    const payload = {
+      id: updateRecord.id,
+      taskId: updateRecord.taskId || task.id,
+      accountId: task.accountId || task.tamUnitId || '',
+      projectId: task.projectId || '',
+      note: updateRecord.body || updateRecord.note || '',
+      category: updateRecord.updateType || updateRecord.category || 'Comment',
+      userId,
+      userName: buildUpdateUserName(),
+      createdAt: updateRecord.createdAt || new Date().toISOString(),
+      updatedAt: updateRecord.updatedAt || updateRecord.createdAt || new Date().toISOString(),
+      updatedUserId: userId
+    }
+
+    const response = await fetch('/api/google_sheets/updates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      let message = 'Failed to sync update to Google Sheets'
+      try {
+        const data = await response.json()
+        message = data?.error || data?.details || message
+      } catch (error) {
+        console.error('Error parsing update sync response:', error)
+      }
+      throw new Error(message)
+    }
+
+    return response.json()
+  }
+
   const handleAddUpdate = async () => {
     if (!newUpdate.body.trim() || !storageManager) return
     
@@ -772,6 +828,12 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
       })
       
       await storageManager.saveTaskUpdate(update)
+      try {
+        await syncUpdateToSheet(update)
+      } catch (error) {
+        console.error('Error syncing update to Google Sheets:', error)
+        alert('Update saved locally, but failed to sync to Google Sheets.')
+      }
       setNewUpdate({ body: '', updateType: 'Comment' })
       await loadUpdates()
       onUpdate()

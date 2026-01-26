@@ -45,6 +45,18 @@ const isCacheFresh = (cached) => {
   return Date.now() - cachedAt < CACHE_TTL_MS
 }
 
+const mergeById = (items = [], item) => {
+  if (!item?.id) return items
+  const nextItems = [...items]
+  const existingIndex = nextItems.findIndex((existing) => existing.id === item.id)
+  if (existingIndex >= 0) {
+    nextItems[existingIndex] = item
+    return nextItems
+  }
+  nextItems.push(item)
+  return nextItems
+}
+
 const getInitials = (name) => {
   if (!name || name === 'Unassigned') return '?'
   const parts = String(name).trim().split(/\s+/).filter(Boolean)
@@ -436,6 +448,22 @@ export default function Tasks() {
     }
   }
 
+  const handleProjectCreated = (project) => {
+    if (!project) return
+    setProjects((prev) => mergeById(prev, project))
+
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const cached = readSheetCache(userId) || {}
+    const nextProjects = mergeById(cached.projects || projects || [], project)
+    writeSheetCache(userId, {
+      accounts: cached.accounts || cached.tamUnits || accounts || [],
+      projects: nextProjects,
+      tasks: cached.tasks || tasks || []
+    })
+  }
+
   if (status === "loading") {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>
   }
@@ -638,8 +666,8 @@ export default function Tasks() {
             setEditingTask(null)
           }}
           onSave={handleTaskSaved}
-          onClientCreated={() => {
-            refreshTaskData()
+          onClientCreated={(project) => {
+            handleProjectCreated(project)
           }}
         />
       )}
@@ -1399,7 +1427,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       setNewProjectName('')
       setShowNewProjectInput(false)
       if (onClientCreated) {
-        onClientCreated()
+        onClientCreated(project)
       }
     } catch (error) {
       console.error('Error creating project:', error)

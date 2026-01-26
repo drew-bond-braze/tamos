@@ -88,7 +88,7 @@ export default function Projects() {
     }
   }
 
-  const loadData = async (userId, cachedData = {}, localProjects = []) => {
+  const loadData = async (userId, cachedData = {}) => {
     try {
       if (!userId) return
 
@@ -98,7 +98,7 @@ export default function Projects() {
         'summary'
       )
 
-      const nextProjects = mergeListsById(localProjects, cachedData.projects, summary?.projects)
+      const nextProjects = summary?.projects ?? cachedData.projects ?? []
       const nextTasks = summary?.tasks ?? cachedData.tasks ?? []
       const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? []
 
@@ -129,14 +129,8 @@ export default function Projects() {
     }
 
     if (cached && isCacheFresh(cached)) return
-
-    const loadWithLocalProjects = async () => {
-      const localProjects = storageManager ? await storageManager.getProjects() : []
-      await loadData(userId, cached, localProjects)
-    }
-
-    loadWithLocalProjects()
-  }, [status, session?.user?.id, storageManager])
+    loadData(userId, cached)
+  }, [status, session?.user?.id])
 
   const toggleProject = (projectId) => {
     setExpandedProjects((prev) => ({

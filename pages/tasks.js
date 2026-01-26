@@ -483,7 +483,7 @@ export default function Tasks() {
     if (!userId) return
 
     const cached = readSheetCache(userId) || {}
-    const nextProjects = mergeById(cached.projects || projects || [], project)
+    const nextProjects = mergeById(cached.projects || [], project)
     writeSheetCache(userId, {
       accounts: cached.accounts || cached.tamUnits || accounts || [],
       projects: nextProjects,

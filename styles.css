@@ -1321,6 +1321,15 @@ a {
     gap: 10px;
     flex-wrap: wrap;
     margin-bottom: 15px;
+    align-items: center;
+}
+
+.filter-tabs .client-filter {
+    margin: 0;
+}
+
+.filter-tabs .client-select {
+    min-width: 220px;
 }
 
 .filter-tab {

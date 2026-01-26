@@ -680,7 +680,7 @@ export default function Tasks() {
                 </div>
 
                 <div className="tasks-filters">
-                  <div className="filter-tabs">
+                <div className="filter-tabs">
                     <button 
                       className={filterView === 'all' ? 'filter-tab active' : 'filter-tab'}
                       onClick={() => setFilterView('all')}
@@ -711,7 +711,6 @@ export default function Tasks() {
                     >
                       By Account
                     </button>
-                  </div>
 
                   {filterView === 'by-client' && (
                     <div className="client-filter">

@@ -1202,6 +1202,51 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
     return project?.name || ''
   }
 
+  const buildProjectPayload = (projectRecord) => {
+    const accountId = projectRecord.accountId || projectRecord.tamUnitId || formData.accountId || ''
+    const accountName = getAccountName(accountId)
+    const { firstName, lastName } = getUserNameParts()
+    const now = new Date().toISOString()
+    const userId = session?.user?.id || session?.user?.userId || session?.user?.user_id || ''
+    const userEmail = session?.user?.email || ''
+
+    return {
+      ...projectRecord,
+      id: projectRecord.id,
+      name: projectRecord.name || newProjectName.trim(),
+      accountId,
+      accountName,
+      userId,
+      userEmail,
+      userFirstName: firstName || '',
+      userLastName: lastName || '',
+      createdAt: projectRecord.createdAt || now,
+      updatedAt: projectRecord.updatedAt || projectRecord.createdAt || now,
+      updatedUserId: userId
+    }
+  }
+
+  const syncProjectToSheet = async (projectRecord) => {
+    const response = await fetch('/api/google_sheets/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildProjectPayload(projectRecord))
+    })
+
+    if (!response.ok) {
+      let message = 'Failed to sync project to Google Sheets'
+      try {
+        const data = await response.json()
+        message = data?.error || data?.details || message
+      } catch (error) {
+        console.error('Error parsing project sync response:', error)
+      }
+      throw new Error(message)
+    }
+
+    return response.json()
+  }
+
   const buildSheetTaskPayload = (taskRecord, { isUpdate = false } = {}) => {
     const accountId = taskRecord.accountId || taskRecord.tamUnitId || formData.accountId || ''
     const projectId = taskRecord.projectId || formData.projectId || ''
@@ -1346,6 +1391,12 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
         dueDate: null
       })
       await storageManager.saveProject(project)
+      try {
+        await syncProjectToSheet(project)
+      } catch (error) {
+        console.error('Error syncing project to Google Sheets:', error)
+        alert('Project saved locally, but failed to sync to Google Sheets.')
+      }
       setFormData({ ...formData, projectId: project.id })
       setNewProjectName('')
       setShowNewProjectInput(false)

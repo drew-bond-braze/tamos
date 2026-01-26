@@ -639,9 +639,7 @@ export default function Tasks() {
           }}
           onSave={handleTaskSaved}
           onClientCreated={() => {
-            if (storageManager) {
-              loadData(storageManager)
-            }
+            refreshTaskData()
           }}
         />
       )}

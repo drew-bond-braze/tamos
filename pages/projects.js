@@ -317,20 +317,18 @@ export default function Projects() {
                   >
                     ↻
                   </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setShowNewProject(true)}
+                >
+                  + New Project
+                </button>
                 </div>
               </div>
 
               <section className="card">
                 <div className="card-title">Projects</div>
-                <div className="card-actions">
-                  <button
-                    type="button"
-                  className="btn btn-primary"
-                    onClick={() => setShowNewProject(true)}
-                  >
-                    + New Project
-                  </button>
-                </div>
                 {showNewProject && (
                   <div className="modal-overlay" onClick={() => setShowNewProject(false)}>
                     <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>

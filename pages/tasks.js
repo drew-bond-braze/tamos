@@ -654,7 +654,7 @@ export default function Tasks() {
                     <h1>Task Tracker</h1>
                     <p>Track tasks and projects per client</p>
                   </div>
-                  <div className="dashboard-header-actions">
+                  <div className="dashboard-user">
                     <button
                       type="button"
                       className="refresh-button"
@@ -665,20 +665,21 @@ export default function Tasks() {
                     >
                       ↻
                     </button>
-                    <button onClick={handleNewTask} className="btn btn-primary">
-                      + New Task
+                    <span>{session.user?.name || session.user?.email}</span>
+                    <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                    <button
+                      onClick={() => signOut({ callbackUrl: '/' })}
+                      className="btn btn-secondary auth-button"
+                    >
+                      Sign out
                     </button>
-                    <div className="dashboard-user">
-                      <span>{session.user?.name || session.user?.email}</span>
-                      <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
-                      <button
-                        onClick={() => signOut({ callbackUrl: '/' })}
-                        className="btn btn-secondary auth-button"
-                      >
-                        Sign out
-                      </button>
-                    </div>
                   </div>
+                </div>
+
+                <div className="page-actions">
+                  <button onClick={handleNewTask} className="btn btn-primary">
+                    + New Task
+                  </button>
                 </div>
 
                 <div className="tasks-filters">

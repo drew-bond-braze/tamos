@@ -252,7 +252,7 @@ export default function Accounts() {
                   <h1>My Accounts</h1>
                   <p>See projects by account and roll up tasks under each project.</p>
                 </div>
-                <div className="dashboard-header-actions">
+                <div className="dashboard-user">
                   <button
                     type="button"
                     className="refresh-button"
@@ -263,16 +263,14 @@ export default function Accounts() {
                   >
                     {isRefreshing ? '↻' : '↻'}
                   </button>
-                  <div className="dashboard-user">
-                    <span>{session.user?.name || session.user?.email}</span>
-                    <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
-                    <button
-                      onClick={() => signOut({ callbackUrl: '/' })}
-                      className="btn btn-secondary auth-button"
-                    >
-                      Sign out
-                    </button>
-                  </div>
+                  <span>{session.user?.name || session.user?.email}</span>
+                  <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                  <button
+                    onClick={() => signOut({ callbackUrl: '/' })}
+                    className="btn btn-secondary auth-button"
+                  >
+                    Sign out
+                  </button>
                 </div>
               </div>
 

@@ -165,6 +165,13 @@ a {
     padding: 0 20px 24px;
 }
 
+.page-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 0 20px 16px;
+}
+
 .dashboard-header-actions {
     display: flex;
     align-items: center;

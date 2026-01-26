@@ -298,7 +298,7 @@ export default function Projects() {
                   <h1>My Projects</h1>
                   <p>Track projects and roll up the tasks underneath each one.</p>
                 </div>
-                <div className="dashboard-header-actions">
+                <div className="dashboard-user">
                   <button
                     type="button"
                     className="refresh-button"
@@ -309,6 +309,18 @@ export default function Projects() {
                   >
                     ↻
                   </button>
+                  <span>{session.user?.name || session.user?.email}</span>
+                  <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                  <button
+                    onClick={() => signOut({ callbackUrl: '/' })}
+                    className="btn btn-secondary auth-button"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </div>
+
+              <div className="page-actions">
                 <button
                   type="button"
                   className="btn btn-primary"
@@ -316,17 +328,6 @@ export default function Projects() {
                 >
                   + New Project
                 </button>
-                  <div className="dashboard-user">
-                    <span>{session.user?.name || session.user?.email}</span>
-                    <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
-                    <button
-                      onClick={() => signOut({ callbackUrl: '/' })}
-                      className="btn btn-secondary auth-button"
-                    >
-                      Sign out
-                    </button>
-                  </div>
-                </div>
               </div>
 
               <section className="card">

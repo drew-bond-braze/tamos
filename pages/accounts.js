@@ -370,7 +370,7 @@ export default function Accounts() {
 
           <footer className="footer">
             <div className="container">
-              <p>&copy; 2024 TAM OS. All rights reserved.</p>
+              <p>&copy; 2026 TAM OS. All rights reserved.</p>
             </div>
           </footer>
         </div>

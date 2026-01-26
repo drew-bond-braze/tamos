@@ -68,6 +68,31 @@ const mergeListsById = (...lists) => {
   return Array.from(merged.values())
 }
 
+const pruneLocalAgainstSheet = async (storageManager, localTasks, localProjects, sheetTasks, sheetProjects) => {
+  const sheetTaskIds = new Set((sheetTasks || []).map((task) => task?.id).filter(Boolean))
+  const sheetProjectIds = new Set((sheetProjects || []).map((project) => project?.id).filter(Boolean))
+
+  const prunedTasks = (localTasks || []).filter((task) => task?.id && sheetTaskIds.has(task.id))
+  const prunedProjects = (localProjects || []).filter((project) => project?.id && sheetProjectIds.has(project.id))
+
+  if (storageManager) {
+    const staleTasks = (localTasks || []).filter((task) => task?.id && !sheetTaskIds.has(task.id))
+    const staleProjects = (localProjects || []).filter((project) => project?.id && !sheetProjectIds.has(project.id))
+
+    for (const task of staleTasks) {
+      await storageManager.deleteTask(task.id)
+    }
+
+    if (typeof storageManager.deleteProject === 'function') {
+      for (const project of staleProjects) {
+        await storageManager.deleteProject(project.id)
+      }
+    }
+  }
+
+  return { prunedTasks, prunedProjects }
+}
+
 const getInitials = (name) => {
   if (!name || name === 'Unassigned') return '?'
   const parts = String(name).trim().split(/\s+/).filter(Boolean)
@@ -235,9 +260,20 @@ export default function Tasks() {
       }
 
       const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? localAccounts ?? []
-      const nextProjects = mergeListsById(localProjects, cachedData.projects, summary?.projects)
+      const sheetProjects = summary?.projects ?? cachedData.projects ?? []
       const sheetTasks = summary?.tasks ?? cachedData.tasks ?? []
-      const combinedTasks = [...(localTasks || []), ...(sheetTasks || [])]
+
+      let filteredLocalTasks = localTasks || []
+      let filteredLocalProjects = localProjects || []
+
+      if (summary && Array.isArray(summary.tasks) && Array.isArray(summary.projects)) {
+        const pruned = await pruneLocalAgainstSheet(storageManager, localTasks, localProjects, summary.tasks, summary.projects)
+        filteredLocalTasks = pruned.prunedTasks
+        filteredLocalProjects = pruned.prunedProjects
+      }
+
+      const nextProjects = mergeListsById(filteredLocalProjects, cachedData.projects, summary?.projects)
+      const combinedTasks = [...filteredLocalTasks, ...(sheetTasks || [])]
       const normalizedTasks = combinedTasks.map(normalizeTaskRecord).filter(Boolean)
       const uniqueTasks = Array.from(new Map(normalizedTasks.map(t => [t.id, t])).values())
 
@@ -729,13 +765,13 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
       const response = await fetch(`/api/google_sheets/updates?taskId=${encodeURIComponent(taskId)}`, { method: 'GET' })
       if (!response.ok) {
         console.error('Failed to fetch sheet updates:', response.statusText)
-        return []
+        return null
       }
       const data = await response.json()
       return Array.isArray(data) ? data : []
     } catch (error) {
       console.error('Network error fetching sheet updates:', error)
-      return []
+      return null
     }
   }
 
@@ -763,17 +799,26 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
   const loadUpdates = async () => {
     if (!task) return
     try {
-      const [localUpdates, sheetUpdates] = await Promise.all([
+      const [localUpdates, sheetUpdatesResponse] = await Promise.all([
         storageManager ? storageManager.getTaskUpdates(task.id) : [],
         fetchSheetUpdates(task.id)
       ])
 
-      const normalizedSheetUpdates = (sheetUpdates || [])
+      const sheetUpdates = Array.isArray(sheetUpdatesResponse) ? sheetUpdatesResponse : []
+      const normalizedSheetUpdates = sheetUpdates
         .map((update, index) => normalizeUpdateRecord(update, `${task.id}-sheet-${index}`))
         .filter(Boolean)
       const normalizedLocalUpdates = (localUpdates || [])
         .map((update, index) => normalizeUpdateRecord(update, update.id || `${task.id}-local-${index}`))
         .filter(Boolean)
+
+      if (storageManager && Array.isArray(sheetUpdatesResponse)) {
+        const sheetUpdateIds = new Set(normalizedSheetUpdates.map((update) => update.id).filter(Boolean))
+        const staleUpdates = normalizedLocalUpdates.filter((update) => update.id && !sheetUpdateIds.has(update.id))
+        for (const update of staleUpdates) {
+          await storageManager.deleteTaskUpdate(update.id)
+        }
+      }
 
       const mergedUpdates = Array.from(new Map(
         [...normalizedSheetUpdates, ...normalizedLocalUpdates].map(update => [update.id, update])

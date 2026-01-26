@@ -216,6 +216,7 @@ export default function Tasks() {
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isPageLoading, setIsPageLoading] = useState(true)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -307,15 +308,32 @@ export default function Tasks() {
     const userId = session?.user?.id
     if (!userId) return
 
-    const cached = readSheetCache(userId)
-    if (cached) {
-      setAccounts(cached.accounts || cached.tamUnits || [])
-      setProjects(cached.projects || [])
-      setTasks(cached.tasks || [])
+    let isCancelled = false
+
+    const run = async () => {
+      setIsPageLoading(true)
+      const cached = readSheetCache(userId)
+      if (cached) {
+        setAccounts(cached.accounts || cached.tamUnits || [])
+        setProjects(cached.projects || [])
+        setTasks(cached.tasks || [])
+      }
+
+      const skipSheetFetch = Boolean(cached && isCacheFresh(cached))
+      try {
+        await loadData(storageManager, userId, cached || {}, skipSheetFetch)
+      } finally {
+        if (!isCancelled) {
+          setIsPageLoading(false)
+        }
+      }
     }
 
-    const skipSheetFetch = Boolean(cached && isCacheFresh(cached))
-    loadData(storageManager, userId, cached || {}, skipSheetFetch)
+    run()
+
+    return () => {
+      isCancelled = true
+    }
   }, [status, session?.user?.id, storageManager])
 
   const getFilteredTasks = () => {
@@ -591,6 +609,14 @@ export default function Tasks() {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <p>Redirecting to sign in...</p>
+      </div>
+    )
+  }
+
+  if (isPageLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <p>Loading tasks...</p>
       </div>
     )
   }

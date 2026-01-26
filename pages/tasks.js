@@ -37,7 +37,6 @@ const writeSheetCache = (userId, data) => {
 }
 
 const CACHE_TTL_MS = 10 * 60 * 1000
-const AUTO_REFRESH_MS = 2 * 60 * 1000
 
 const isCacheFresh = (cached) => {
   if (!cached?.cachedAt) return false
@@ -215,8 +214,7 @@ export default function Tasks() {
       const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? localAccounts ?? []
       const nextProjects = summary?.projects ?? cachedData.projects ?? localProjects ?? []
       const sheetTasks = summary?.tasks ?? cachedData.tasks ?? []
-      const useSheetTasks = Array.isArray(summary?.tasks) || Array.isArray(cachedData.tasks)
-      const combinedTasks = useSheetTasks ? (sheetTasks || []) : [...(localTasks || []), ...(sheetTasks || [])]
+      const combinedTasks = [...(localTasks || []), ...(sheetTasks || [])]
       const normalizedTasks = combinedTasks.map(normalizeTaskRecord).filter(Boolean)
       const uniqueTasks = Array.from(new Map(normalizedTasks.map(t => [t.id, t])).values())
 
@@ -258,19 +256,6 @@ export default function Tasks() {
 
     const skipSheetFetch = Boolean(cached && isCacheFresh(cached))
     loadData(storageManager, userId, cached || {}, skipSheetFetch)
-  }, [status, session?.user?.id, storageManager])
-
-  useEffect(() => {
-    if (status !== "authenticated" || !storageManager) return
-    const userId = session?.user?.id
-    if (!userId) return
-
-    const intervalId = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return
-      refreshTaskData()
-    }, AUTO_REFRESH_MS)
-
-    return () => clearInterval(intervalId)
   }, [status, session?.user?.id, storageManager])
 
   const getFilteredTasks = () => {

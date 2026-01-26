@@ -669,6 +669,8 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
   const [updates, setUpdates] = useState([])
   const [newUpdate, setNewUpdate] = useState({ body: '', updateType: 'Comment' })
   const [isSaving, setIsSaving] = useState(false)
+  const [editingUpdateId, setEditingUpdateId] = useState(null)
+  const [editUpdateForm, setEditUpdateForm] = useState({ body: '', updateType: 'Comment' })
 
   useEffect(() => {
     if (storageManager && task) {
@@ -778,8 +780,31 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     return 'Unknown'
   }
 
-  const syncUpdateToSheet = async (updateRecord) => {
+  const syncUpdateToSheet = async (updateRecord, { method = 'POST' } = {}) => {
     const userId = session?.user?.id || session?.user?.userId || session?.user?.user_id || ''
+    if (method === 'DELETE') {
+      const response = await fetch('/api/google_sheets/updates', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: updateRecord.id })
+      })
+
+      if (!response.ok) {
+        let message = 'Failed to delete update from Google Sheets'
+        try {
+          const data = await response.json()
+          message = data?.error || data?.details || message
+        } catch (error) {
+          console.error('Error parsing update delete response:', error)
+        }
+        throw new Error(message)
+      }
+
+      return response.json()
+    }
+
+    const now = new Date().toISOString()
+    const isUpdate = method === 'PUT'
     const payload = {
       id: updateRecord.id,
       taskId: updateRecord.taskId || task.id,
@@ -789,13 +814,13 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
       category: updateRecord.updateType || updateRecord.category || 'Comment',
       userId,
       userName: buildUpdateUserName(),
-      createdAt: updateRecord.createdAt || new Date().toISOString(),
-      updatedAt: updateRecord.updatedAt || updateRecord.createdAt || new Date().toISOString(),
+      createdAt: updateRecord.createdAt || now,
+      updatedAt: isUpdate ? now : (updateRecord.updatedAt || updateRecord.createdAt || now),
       updatedUserId: userId
     }
 
     const response = await fetch('/api/google_sheets/updates', {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
@@ -812,6 +837,75 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     }
 
     return response.json()
+  }
+
+  const startEditUpdate = (update) => {
+    setEditingUpdateId(update.id)
+    setEditUpdateForm({
+      body: update.body || update.note || '',
+      updateType: update.updateType || update.category || 'Comment'
+    })
+  }
+
+  const cancelEditUpdate = () => {
+    setEditingUpdateId(null)
+    setEditUpdateForm({ body: '', updateType: 'Comment' })
+  }
+
+  const handleSaveUpdateEdit = async (update) => {
+    if (!editUpdateForm.body.trim()) return
+
+    setIsSaving(true)
+    try {
+      const userId = session?.user?.id || session?.user?.userId || session?.user?.user_id || ''
+      const now = new Date().toISOString()
+      const updatedUpdate = {
+        ...update,
+        body: editUpdateForm.body,
+        note: editUpdateForm.body,
+        updateType: editUpdateForm.updateType,
+        category: editUpdateForm.updateType,
+        updatedAt: now,
+        updatedUserId: userId
+      }
+
+      if (storageManager) {
+        await storageManager.deleteTaskUpdate(update.id)
+        await storageManager.saveTaskUpdate({
+          ...updatedUpdate,
+          createdAt: update.createdAt || now
+        })
+      }
+
+      await syncUpdateToSheet(updatedUpdate, { method: 'PUT' })
+      cancelEditUpdate()
+      await loadUpdates()
+      onUpdate()
+    } catch (error) {
+      console.error('Error updating update:', error)
+      alert('Error updating update')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteUpdate = async (update) => {
+    if (!confirm('Are you sure you want to delete this update?')) return
+
+    setIsSaving(true)
+    try {
+      if (storageManager) {
+        await storageManager.deleteTaskUpdate(update.id)
+      }
+      await syncUpdateToSheet(update, { method: 'DELETE' })
+      await loadUpdates()
+      onUpdate()
+    } catch (error) {
+      console.error('Error deleting update:', error)
+      alert('Error deleting update')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleAddUpdate = async () => {
@@ -896,23 +990,88 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
               {updates.length === 0 ? (
                 <p style={{ color: '#666', fontStyle: 'italic' }}>No updates yet</p>
               ) : (
-                updates.map(update => (
-                  <div key={update.id} className="timeline-item">
-                    <div className="timeline-header">
-                      <strong>{update.author}</strong>
-                      <span className="timeline-type">{update.updateType}</span>
-                      <span className="timeline-date">
-                        {new Date(update.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="timeline-body">{update.body}</div>
-                    {update.statusAfter && (
-                      <div className="timeline-changes">
-                        {update.statusAfter && <span>Status → {update.statusAfter}</span>}
+                updates.map(update => {
+                  const isEditing = editingUpdateId === update.id
+                  return (
+                    <div key={update.id} className="timeline-item">
+                      <div className="timeline-header">
+                        <strong>{update.author}</strong>
+                        <span className="timeline-type">{update.updateType}</span>
+                        <div className="timeline-meta">
+                          <span className="timeline-date">
+                            {new Date(update.createdAt).toLocaleString()}
+                          </span>
+                          <div className="timeline-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-xs"
+                              onClick={() => startEditUpdate(update)}
+                              disabled={isSaving}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-xs"
+                              onClick={() => handleDeleteUpdate(update)}
+                              disabled={isSaving}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))
+                      {isEditing ? (
+                        <div className="timeline-edit-form">
+                          <select
+                            value={editUpdateForm.updateType}
+                            onChange={(e) => setEditUpdateForm({ ...editUpdateForm, updateType: e.target.value })}
+                            className="update-type-select"
+                          >
+                            <option value="Comment">Comment</option>
+                            <option value="Status change">Status change</option>
+                            <option value="Risk">Risk</option>
+                            <option value="Next step">Next step</option>
+                            <option value="Decision">Decision</option>
+                          </select>
+                          <textarea
+                            value={editUpdateForm.body}
+                            onChange={(e) => setEditUpdateForm({ ...editUpdateForm, body: e.target.value })}
+                            rows="3"
+                            className="update-textarea"
+                          />
+                          <div className="timeline-edit-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-xs"
+                              onClick={cancelEditUpdate}
+                              disabled={isSaving}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-xs"
+                              onClick={() => handleSaveUpdateEdit(update)}
+                              disabled={!editUpdateForm.body.trim() || isSaving}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="timeline-body">{update.body || update.note}</div>
+                          {update.statusAfter && (
+                            <div className="timeline-changes">
+                              {update.statusAfter && <span>Status → {update.statusAfter}</span>}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })
               )}
             </div>
           </div>

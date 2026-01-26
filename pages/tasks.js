@@ -712,22 +712,22 @@ export default function Tasks() {
                       By Account
                     </button>
 
-                  {filterView === 'by-client' && (
-                    <div className="client-filter">
-                      <select 
-                        value={selectedAccount}
-                        onChange={(e) => setSelectedAccount(e.target.value)}
-                        className="client-select"
-                      >
-                        <option value="all">All Accounts</option>
-                        {accounts.map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {account.accountName || account.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  <div className={`client-filter ${filterView === 'by-client' ? 'is-visible' : 'is-hidden'}`}>
+                    <select 
+                      value={selectedAccount}
+                      onChange={(e) => setSelectedAccount(e.target.value)}
+                      className="client-select"
+                      aria-hidden={filterView !== 'by-client'}
+                      disabled={filterView !== 'by-client'}
+                    >
+                      <option value="all">All Accounts</option>
+                      {accounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.accountName || account.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   </div>
                 </div>
 

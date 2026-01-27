@@ -9,16 +9,50 @@ if (typeof window !== "undefined") {
   StorageManager = StorageManagerModule.default || StorageManagerModule.StorageManager || StorageManagerModule
 }
 
+const buildSheetCacheKey = (userId) => `tamos_sheet_cache_${userId}`
+
+const readSheetCache = (userId) => {
+  if (typeof window === "undefined" || !userId) return null
+  try {
+    const cached = localStorage.getItem(buildSheetCacheKey(userId))
+    return cached ? JSON.parse(cached) : null
+  } catch (error) {
+    console.error('Error reading projects cache:', error)
+    return null
+  }
+}
+
+const writeSheetCache = (userId, data) => {
+  if (typeof window === "undefined" || !userId) return
+  try {
+    localStorage.setItem(
+      buildSheetCacheKey(userId),
+      JSON.stringify({ ...data, cachedAt: Date.now() })
+    )
+  } catch (error) {
+    console.error('Error writing projects cache:', error)
+  }
+}
+
+const CACHE_TTL_MS = 10 * 60 * 1000
+
+const isCacheFresh = (cached) => {
+  if (!cached?.cachedAt) return false
+  const cachedAt = typeof cached.cachedAt === 'number' ? cached.cachedAt : Date.parse(cached.cachedAt)
+  if (!Number.isFinite(cachedAt)) return false
+  return Date.now() - cachedAt < CACHE_TTL_MS
+}
+
 export default function Projects() {
   const { data: session, status } = useSession()
   const [storageManager, setStorageManager] = useState(null)
   const [projects, setProjects] = useState([])
   const [tasks, setTasks] = useState([])
-  const [tamUnits, setTamUnits] = useState([])
+  const [accounts, setAccounts] = useState([])
   const [expandedProjects, setExpandedProjects] = useState({})
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
-  const [newProjectTamUnit, setNewProjectTamUnit] = useState('')
+  const [newProjectAccount, setNewProjectAccount] = useState('')
   const [newProjectDueDate, setNewProjectDueDate] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
 
@@ -26,24 +60,66 @@ export default function Projects() {
     if (typeof window !== "undefined" && StorageManager) {
       const sm = new StorageManager()
       setStorageManager(sm)
-      loadData(sm)
     }
   }, [])
 
-  const loadData = async (sm) => {
+  const fetchSheetData = async (url, label) => {
     try {
-      const [projectsData, tasksData, tamUnitsData] = await Promise.all([
-        sm.getProjects(),
-        sm.getTasks(),
-        sm.getTamUnits()
-      ])
-      setProjects(projectsData)
-      setTasks(tasksData)
-      setTamUnits(tamUnitsData)
+      const response = await fetch(url, { method: 'GET' })
+      if (!response.ok) {
+        console.error(`Failed to fetch ${label}:`, response.statusText)
+        return null
+      }
+      return await response.json()
+    } catch (error) {
+      console.error(`Network error fetching ${label}:`, error)
+      return null
+    }
+  }
+
+  const loadData = async (userId, cachedData = {}) => {
+    try {
+      if (!userId) return
+
+      const encodedUserId = encodeURIComponent(userId)
+      const summary = await fetchSheetData(
+        `/api/google_sheets/summary?userId=${encodedUserId}`,
+        'summary'
+      )
+
+      const nextProjects = summary?.projects ?? cachedData.projects ?? []
+      const nextTasks = summary?.tasks ?? cachedData.tasks ?? []
+      const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? []
+
+      setProjects(nextProjects)
+      setTasks(nextTasks)
+      setAccounts(nextAccounts)
+
+      writeSheetCache(userId, {
+        accounts: nextAccounts,
+        projects: nextProjects,
+        tasks: nextTasks
+      })
     } catch (error) {
       console.error('Error loading data:', error)
     }
   }
+
+  useEffect(() => {
+    if (status !== "authenticated") return
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const cached = readSheetCache(userId)
+    if (cached) {
+      setProjects(cached.projects || [])
+      setTasks(cached.tasks || [])
+      setAccounts(cached.accounts || cached.tamUnits || [])
+    }
+
+    if (cached && isCacheFresh(cached)) return
+    loadData(userId, cached)
+  }, [status, session?.user?.id])
 
   const toggleProject = (projectId) => {
     setExpandedProjects((prev) => ({
@@ -52,42 +128,50 @@ export default function Projects() {
     }))
   }
 
-  const getTamUnitName = (tamUnitId) => {
-    if (!tamUnitId) return 'Personal'
-    const unit = tamUnits.find((u) => u.id === tamUnitId)
-    return unit ? unit.name : 'Unknown TAM Unit'
+  const getAccountName = (accountId) => {
+    if (!accountId) return 'Personal'
+    const account = accounts.find((u) => u.id === accountId)
+    if (!account) return 'Unknown Account'
+    return account.accountName || account.name || 'Unknown Account'
   }
 
   const getProjectTasks = (projectId) => {
-    return tasks.filter((task) => task.projectId === projectId)
+    return tasks.filter((task) => {
+      const taskProjectId = task.projectId || task.project_id || task.projectID || task.project
+      if (!taskProjectId) return false
+      return String(taskProjectId) === String(projectId)
+    })
   }
 
   const visibleProjects = projects
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim() || !storageManager) return
-    if (!newProjectTamUnit) {
-      alert('Select a TAM unit for this project')
+    if (!newProjectAccount) {
+      alert('Select an account for this project')
       return
     }
 
     setIsCreatingProject(true)
     try {
-      const unit = tamUnits.find((u) => u.id === newProjectTamUnit)
-      const isPersonal = unit?.name === 'Personal'
+      const account = accounts.find((u) => u.id === newProjectAccount)
+      const accountName = account?.accountName || account?.name
+      const isPersonal = accountName === 'Personal'
 
       const project = storageManager.createProject({
         name: newProjectName.trim(),
-        tamUnitId: newProjectTamUnit,
+        accountId: newProjectAccount,
         isPersonal,
         dueDate: newProjectDueDate || null
       })
       await storageManager.saveProject(project)
       setNewProjectName('')
-      setNewProjectTamUnit('')
+      setNewProjectAccount('')
       setNewProjectDueDate('')
       setShowNewProject(false)
-      await loadData(storageManager)
+      if (session?.user?.id) {
+        await loadData(session.user.id, readSheetCache(session.user.id))
+      }
     } catch (error) {
       console.error('Error creating project:', error)
       alert('Error creating project')
@@ -129,8 +213,8 @@ export default function Projects() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link active">My Projects</Link>
-              <Link href="/tam-units" className="nav-link">My TAM Units</Link>
               <Link href="/my-ics" className="nav-link">My ICs</Link>
+              <Link href="/accounts" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>
@@ -181,14 +265,16 @@ export default function Projects() {
                         />
                       </div>
                       <div className="form-group">
-                        <label>TAM Unit *</label>
+                        <label>Account *</label>
                         <select
-                          value={newProjectTamUnit}
-                          onChange={(e) => setNewProjectTamUnit(e.target.value)}
+                          value={newProjectAccount}
+                          onChange={(e) => setNewProjectAccount(e.target.value)}
                         >
-                          <option value="">Select TAM Unit</option>
-                          {tamUnits.map((unit) => (
-                            <option key={unit.id} value={unit.id}>{unit.name}</option>
+                          <option value="">Select Account</option>
+                          {accounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.accountName || account.name}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -229,7 +315,9 @@ export default function Projects() {
                       <div className="disclosure-row">
                         <div>
                           <div className="card-item-title">{project.name}</div>
-                          <div className="disclosure-meta">{getTamUnitName(project.tamUnitId)} • {projectTasks.length} tasks</div>
+                          <div className="disclosure-meta">
+                            {getAccountName(project.accountId || project.tamUnitId)} • {projectTasks.length} tasks
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -244,12 +332,16 @@ export default function Projects() {
                           {projectTasks.length === 0 ? (
                             <div className="nested-item muted">No tasks assigned yet.</div>
                           ) : (
-                            projectTasks.map((task) => (
-                              <div key={task.id} className="nested-item">
-                                <span>{task.title}</span>
-                                <span className="muted">{task.status}</span>
-                              </div>
-                            ))
+                            projectTasks.map((task, index) => {
+                              const taskTitle = task.title || task.name || task.taskName || task.summary || 'Untitled task'
+                              const taskStatus = task.status || task.state || '—'
+                              return (
+                                <div key={task.id || `${project.id}-${index}`} className="nested-item">
+                                  <span>{taskTitle}</span>
+                                  <span className="muted">{taskStatus}</span>
+                                </div>
+                              )
+                            })
                           )}
                         </div>
                       )}

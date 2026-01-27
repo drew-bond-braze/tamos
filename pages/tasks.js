@@ -11,6 +11,40 @@ if (typeof window !== "undefined") {
   StorageManager = StorageManagerModule.default || StorageManagerModule.StorageManager || StorageManagerModule
 }
 
+const buildSheetCacheKey = (userId) => `tamos_sheet_cache_${userId}`
+
+const readSheetCache = (userId) => {
+  if (typeof window === "undefined" || !userId) return null
+  try {
+    const cached = localStorage.getItem(buildSheetCacheKey(userId))
+    return cached ? JSON.parse(cached) : null
+  } catch (error) {
+    console.error('Error reading tasks cache:', error)
+    return null
+  }
+}
+
+const writeSheetCache = (userId, data) => {
+  if (typeof window === "undefined" || !userId) return
+  try {
+    localStorage.setItem(
+      buildSheetCacheKey(userId),
+      JSON.stringify({ ...data, cachedAt: Date.now() })
+    )
+  } catch (error) {
+    console.error('Error writing tasks cache:', error)
+  }
+}
+
+const CACHE_TTL_MS = 10 * 60 * 1000
+
+const isCacheFresh = (cached) => {
+  if (!cached?.cachedAt) return false
+  const cachedAt = typeof cached.cachedAt === 'number' ? cached.cachedAt : Date.parse(cached.cachedAt)
+  if (!Number.isFinite(cachedAt)) return false
+  return Date.now() - cachedAt < CACHE_TTL_MS
+}
+
 export default function Tasks() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -18,9 +52,9 @@ export default function Tasks() {
   const [tasks, setTasks] = useState([])
   const [clients, setClients] = useState([])
   const [projects, setProjects] = useState([])
-  const [tamUnits, setTamUnits] = useState([])
+  const [accounts, setAccounts] = useState([])
   const [filterView, setFilterView] = useState('all')
-  const [selectedTamUnit, setSelectedTamUnit] = useState('all')
+  const [selectedAccount, setSelectedAccount] = useState('all')
   const [selectedTask, setSelectedTask] = useState(null)
   const [showTaskDrawer, setShowTaskDrawer] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
@@ -35,26 +69,85 @@ export default function Tasks() {
     if (typeof window !== "undefined" && StorageManager) {
       const sm = new StorageManager()
       setStorageManager(sm)
-      loadData(sm)
     }
   }, [status, router])
 
-  const loadData = async (sm) => {
+  const fetchSheetData = async (url, label) => {
     try {
-      const [tasksData, clientsData, projectsData, tamUnitsData] = await Promise.all([
+      const response = await fetch(url, { method: 'GET' })
+      if (!response.ok) {
+        console.error(`Failed to fetch ${label}:`, response.statusText)
+        return null
+      }
+      return await response.json()
+    } catch (error) {
+      console.error(`Network error fetching ${label}:`, error)
+      return null
+    }
+  }
+
+  const loadData = async (sm, userId, cachedData = {}, skipSheetFetch = false) => {
+    try {
+      const [localTasks, clientsData, localProjects, localAccounts] = await Promise.all([
         sm.getTasks(),
         sm.getClients(),
         sm.getProjects(),
-        sm.getTamUnits()
+        sm.getAccounts()
       ])
-      setTasks(tasksData)
+
+      let summary = null
+      if (!skipSheetFetch && userId) {
+        summary = await fetchSheetData(
+          `/api/google_sheets/summary?userId=${encodeURIComponent(userId)}`,
+          'summary'
+        )
+      }
+
+      const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? localAccounts ?? []
+      const nextProjects = summary?.projects ?? cachedData.projects ?? localProjects ?? []
+      const sheetTasks = summary?.tasks ?? cachedData.tasks ?? []
+      const combinedTasks = [...(localTasks || []), ...(sheetTasks || [])]
+      const normalizedTasks = combinedTasks.map((task) => {
+        if (!task || task.accountId || !task.tamUnitId) {
+          return task;
+        }
+        const { tamUnitId, ...rest } = task;
+        return { ...rest, accountId: tamUnitId };
+      });
+      const uniqueTasks = Array.from(new Map(normalizedTasks.map(t => [t.id, t])).values());
+
+      setTasks(uniqueTasks)
       setClients(clientsData)
-      setProjects(projectsData)
-      setTamUnits(tamUnitsData)
+      setProjects(nextProjects)
+      setAccounts(nextAccounts)
+
+      if (summary && userId) {
+        writeSheetCache(userId, {
+          accounts: nextAccounts,
+          projects: nextProjects,
+          tasks: sheetTasks
+        })
+      }
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error('Error loading data:', error);
     }
   }
+
+  useEffect(() => {
+    if (status !== "authenticated" || !storageManager) return
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const cached = readSheetCache(userId)
+    if (cached) {
+      setAccounts(cached.accounts || cached.tamUnits || [])
+      setProjects(cached.projects || [])
+      setTasks(cached.tasks || [])
+    }
+
+    const skipSheetFetch = Boolean(cached && isCacheFresh(cached))
+    loadData(storageManager, userId, cached || {}, skipSheetFetch)
+  }, [status, session?.user?.id, storageManager])
 
   const getFilteredTasks = () => {
     let filtered = [...tasks]
@@ -62,7 +155,7 @@ export default function Tasks() {
     // Apply view filters
     switch (filterView) {
       case 'my-tasks':
-        filtered = filtered.filter(t => t.owner === session?.user?.email)
+        filtered = filtered.filter(t => t.user_id === session?.user?.id)
         break
       case 'due-this-week':
         const now = new Date()
@@ -82,8 +175,8 @@ export default function Tasks() {
         })
         break
       case 'by-client':
-        if (selectedTamUnit !== 'all') {
-          filtered = filtered.filter(t => t.tamUnitId === selectedTamUnit)
+        if (selectedAccount !== 'all') {
+          filtered = filtered.filter(t => (t.accountId || t.tamUnitId) === selectedAccount)
         }
         break
     }
@@ -107,10 +200,11 @@ export default function Tasks() {
     return filtered
   }
 
-  const getTamUnitName = (tamUnitId) => {
-    if (!tamUnitId) return 'Personal'
-    const unit = tamUnits.find(u => u.id === tamUnitId)
-    return unit ? unit.name : 'Unknown TAM Unit'
+  const getAccountName = (accountId) => {
+    if (!accountId) return 'Personal'
+    const account = accounts.find(u => u.id === accountId)
+    if (!account) return 'Unknown Account'
+    return account.accountName || account.name || 'Unknown Account'
   }
 
   const getProjectName = (projectId) => {
@@ -264,8 +358,8 @@ export default function Tasks() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link active">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/tam-units" className="nav-link">My TAM Units</Link>
               <Link href="/my-ics" className="nav-link">My ICs</Link>
+              <Link href="/accounts" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>
@@ -321,20 +415,22 @@ export default function Tasks() {
                     className={filterView === 'by-client' ? 'filter-tab active' : 'filter-tab'}
                     onClick={() => setFilterView('by-client')}
                   >
-                    By TAM Unit
+                    By Account
                   </button>
                 </div>
 
                 {filterView === 'by-client' && (
                   <div className="client-filter">
                     <select 
-                      value={selectedTamUnit}
-                      onChange={(e) => setSelectedTamUnit(e.target.value)}
+                      value={selectedAccount}
+                      onChange={(e) => setSelectedAccount(e.target.value)}
                       className="client-select"
                     >
-                      <option value="all">All TAM Units</option>
-                      {tamUnits.map(unit => (
-                        <option key={unit.id} value={unit.id}>{unit.name}</option>
+                      <option value="all">All Accounts</option>
+                      {accounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.accountName || account.name}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -345,7 +441,7 @@ export default function Tasks() {
                 <table className="tasks-table">
                   <thead>
                     <tr>
-                      <th>TAM Unit</th>
+                      <th>Account</th>
                       <th>Project</th>
                       <th>Task</th>
                       <th>Status</th>
@@ -370,7 +466,7 @@ export default function Tasks() {
                           onClick={() => openTaskDetail(task)}
                           style={{ cursor: 'pointer' }}
                         >
-                          <td>{getTamUnitName(task.tamUnitId)}</td>
+                          <td>{task.accountName || getAccountName(task.accountId || task.tamUnitId)}</td>
                           <td>{getProjectName(task.projectId)}</td>
                           <td className="task-title-cell">
                             <strong>{task.title}</strong>
@@ -394,7 +490,7 @@ export default function Tasks() {
         <TaskDetailDrawer
           task={selectedTask}
           projects={projects}
-          tamUnits={tamUnits}
+          accounts={accounts}
           storageManager={storageManager}
           session={session}
           onClose={closeTaskDrawer}
@@ -419,7 +515,7 @@ export default function Tasks() {
         <TaskFormModal
           task={editingTask}
           projects={projects}
-          tamUnits={tamUnits}
+          accounts={accounts}
           storageManager={storageManager}
           session={session}
           onClose={() => {
@@ -447,7 +543,7 @@ export default function Tasks() {
 }
 
 // Task Detail Drawer Component
-function TaskDetailDrawer({ task, projects, tamUnits, storageManager, session, onClose, onEdit, onDelete, onUpdate }) {
+function TaskDetailDrawer({ task, projects, accounts, storageManager, session, onClose, onEdit, onDelete, onUpdate }) {
   const [updates, setUpdates] = useState([])
   const [newUpdate, setNewUpdate] = useState({ body: '', updateType: 'Comment' })
   const [isSaving, setIsSaving] = useState(false)
@@ -468,10 +564,11 @@ function TaskDetailDrawer({ task, projects, tamUnits, storageManager, session, o
     }
   }
 
-  const getTamUnitName = (tamUnitId) => {
-    if (!tamUnitId) return 'Personal'
-    const unit = tamUnits.find(u => u.id === tamUnitId)
-    return unit ? unit.name : 'Unknown TAM Unit'
+  const getAccountName = (accountId) => {
+    if (!accountId) return 'Personal'
+    const account = accounts.find(u => u.id === accountId)
+    if (!account) return 'Unknown Account'
+    return account.accountName || account.name || 'Unknown Account'
   }
 
   const getProjectName = (projectId) => {
@@ -512,7 +609,7 @@ function TaskDetailDrawer({ task, projects, tamUnits, storageManager, session, o
           <div>
             <h2>{task.title}</h2>
             <p className="task-drawer-meta">
-              {getTamUnitName(task.tamUnitId)} • {getProjectName(task.projectId)} • Owner: {task.owner || 'Unassigned'}
+              {accountLabel} • {getProjectName(task.projectId)} • Owner: {task.owner || 'Unassigned'}
             </p>
           </div>
           <div className="task-drawer-actions">
@@ -530,7 +627,7 @@ function TaskDetailDrawer({ task, projects, tamUnits, storageManager, session, o
               <div><strong>Project:</strong> {getProjectName(task.projectId)}</div>
               <div><strong>Priority:</strong> {task.priority}</div>
               <div><strong>Due Date:</strong> {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</div>
-              <div><strong>TAM Unit:</strong> {getTamUnitName(task.tamUnitId)}</div>
+              <div><strong>Account:</strong> {accountLabel}</div>
             </div>
           </div>
 
@@ -620,9 +717,9 @@ function TaskDetailDrawer({ task, projects, tamUnits, storageManager, session, o
 }
 
 // Task Form Modal Component
-function TaskFormModal({ task, projects, tamUnits, storageManager, session, onClose, onSave, onClientCreated }) {
+function TaskFormModal({ task, projects, accounts, storageManager, session, onClose, onSave, onClientCreated }) {
   const [formData, setFormData] = useState({
-    tamUnitId: task?.tamUnitId || '',
+    accountId: task?.accountId || task?.tamUnitId || '',
     projectId: task?.projectId || '',
     title: task?.title || '',
     status: task?.status || 'Not started',
@@ -663,25 +760,26 @@ function TaskFormModal({ task, projects, tamUnits, storageManager, session, onCl
   }
 
   const availableProjects = projects.filter((project) => {
-    if (!formData.tamUnitId) return false
-    return project.tamUnitId === formData.tamUnitId
+    if (!formData.accountId) return false
+    return (project.accountId || project.tamUnitId) === formData.accountId
   })
 
-  const canCreateProject = formData.tamUnitId
+  const canCreateProject = formData.accountId
 
   const handleCreateProject = async () => {
-    if (!newProjectName.trim() || !storageManager || !formData.tamUnitId) return
+    if (!newProjectName.trim() || !storageManager || !formData.accountId) return
 
     setIsCreatingProject(true)
     try {
       let isPersonal = false
 
-      const unit = tamUnits.find((u) => u.id === formData.tamUnitId)
-      isPersonal = unit?.name === 'Personal'
+      const account = accounts.find((u) => u.id === formData.accountId)
+      const accountName = account?.accountName || account?.name
+      isPersonal = accountName === 'Personal'
 
       const project = storageManager.createProject({
         name: newProjectName.trim(),
-        tamUnitId: formData.tamUnitId,
+        accountId: formData.accountId,
         isPersonal,
         dueDate: null
       })
@@ -709,19 +807,21 @@ function TaskFormModal({ task, projects, tamUnits, storageManager, session, onCl
         </div>
         <form onSubmit={handleSubmit} className="task-form">
           <div className="form-group">
-            <label>TAM Unit *</label>
+            <label>Account *</label>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <select 
-                value={formData.tamUnitId}
+                value={formData.accountId}
                 onChange={(e) => {
-                  setFormData({ ...formData, tamUnitId: e.target.value, projectId: '' })
+                  setFormData({ ...formData, accountId: e.target.value, projectId: '' })
                 }}
                 required
                 style={{ flex: 1 }}
               >
-                <option value="">Select TAM Unit</option>
-                {tamUnits.map(unit => (
-                  <option key={unit.id} value={unit.id}>{unit.name}</option>
+                <option value="">Select Account</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.accountName || account.name}
+                  </option>
                 ))}
               </select>
             </div>

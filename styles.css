@@ -311,6 +311,66 @@ a {
     color: #e2e8f0;
 }
 
+.ic-tabs {
+    margin-bottom: 20px;
+}
+
+.ic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.ic-card {
+    background: #0f172a;
+}
+
+.ic-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.ic-section {
+    margin-bottom: 12px;
+}
+
+.ic-section:last-child {
+    margin-bottom: 0;
+}
+
+.ic-disclosure {
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: rgba(15, 23, 42, 0.35);
+}
+
+.ic-disclosure summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.ic-disclosure summary::-webkit-details-marker {
+    display: none;
+}
+
+.ic-disclosure summary::marker {
+    content: "";
+}
+
+.ic-disclosure[open] summary {
+    margin-bottom: 12px;
+    color: #f8fafc;
+}
+
 .card-list {
     display: flex;
     flex-direction: column;

@@ -265,6 +265,7 @@ export default function Tasks() {
               <Link href="/tasks" className="nav-link active">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
               <Link href="/tam-units" className="nav-link">My TAM Units</Link>
+              <Link href="/my-ics" className="nav-link">My ICs</Link>
             </div>
           </div>
         </nav>

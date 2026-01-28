@@ -16,6 +16,7 @@ const HEADER_ALIASES = {
   id: ['id'],
   name: ['name', 'projectname', 'project'],
   projectname: ['name', 'project'],
+  description: ['description', 'details', 'notes'],
   accountid: ['accountid', 'account_id', 'tamunitid'],
   accountname: ['accountname', 'account_name', 'tamunitname'],
   tamunitid: ['accountid'],
@@ -94,6 +95,47 @@ const buildRowValues = (headers, projectData) => {
   ));
 };
 
+const columnIndexToLetter = (index) => {
+  let result = '';
+  let current = index;
+  while (current > 0) {
+    const remainder = (current - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    current = Math.floor((current - 1) / 26);
+  }
+  return result;
+};
+
+const findProjectRowIndexById = async (sheets, spreadsheetId, projectId, idHeaderIndex) => {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'projects!A:Z'
+  });
+  const rows = response.data.values;
+  if (!rows || rows.length <= 1) return null;
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (String(row[idHeaderIndex]) === String(projectId)) {
+      return index + 1;
+    }
+  }
+
+  return null;
+};
+
+const getSheetIdByTitle = async (sheets, spreadsheetId, title) => {
+  const response = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties'
+  });
+  const match = response.data.sheets?.find((sheet) => sheet.properties?.title === title);
+  if (!match) {
+    throw new Error(`Sheet "${title}" not found`);
+  }
+  return match.properties.sheetId;
+};
+
 export async function getProjectsByUserId(userId) {
   try {
     const auth = new google.auth.GoogleAuth({
@@ -167,6 +209,108 @@ export async function addProject(projectData) {
   }
 }
 
+export async function updateProject(projectData) {
+  try {
+    if (!projectData?.id) {
+      throw new Error('Project id required for update');
+    }
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    const headers = await getProjectSheetHeaders(sheets, spreadsheetId);
+    const idHeaderIndex = findHeaderIndex(headers, ['id']);
+    if (idHeaderIndex === -1) {
+      throw new Error("Column 'id' not found in projects sheet");
+    }
+
+    const rowIndex = await findProjectRowIndexById(sheets, spreadsheetId, projectData.id, idHeaderIndex);
+    if (!rowIndex) {
+      throw new Error('Project row not found');
+    }
+
+    const rowValues = buildRowValues(headers, projectData);
+    const lastColumn = columnIndexToLetter(headers.length);
+    const range = `projects!A${rowIndex}:${lastColumn}${rowIndex}`;
+
+    const response = await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowValues],
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error updating project:', error);
+    throw error;
+  }
+}
+
+export async function deleteProject(projectId) {
+  try {
+    if (!projectId) {
+      throw new Error('Project id required for delete');
+    }
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    const headers = await getProjectSheetHeaders(sheets, spreadsheetId);
+    const idHeaderIndex = findHeaderIndex(headers, ['id']);
+    if (idHeaderIndex === -1) {
+      throw new Error("Column 'id' not found in projects sheet");
+    }
+
+    const rowIndex = await findProjectRowIndexById(sheets, spreadsheetId, projectId, idHeaderIndex);
+    if (!rowIndex) {
+      throw new Error('Project row not found');
+    }
+
+    const sheetId = await getSheetIdByTitle(sheets, spreadsheetId, 'projects');
+    const response = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex - 1,
+                endIndex: rowIndex
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    throw error;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     const { userId } = req.query;
@@ -189,6 +333,32 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, result });
     } catch (error) {
       return res.status(500).json({ error: 'Write failed', details: error.message });
+    }
+  }
+
+  if (req.method === 'PUT') {
+    try {
+      const projectData = req.body;
+      if (!projectData || typeof projectData !== 'object') {
+        return res.status(400).json({ error: 'Project payload required' });
+      }
+      const result = await updateProject(projectData);
+      return res.status(200).json({ success: true, result });
+    } catch (error) {
+      return res.status(500).json({ error: 'Update failed', details: error.message });
+    }
+  }
+
+  if (req.method === 'DELETE') {
+    try {
+      const { id } = req.body || {};
+      if (!id) {
+        return res.status(400).json({ error: 'Project id required' });
+      }
+      const result = await deleteProject(id);
+      return res.status(200).json({ success: true, result });
+    } catch (error) {
+      return res.status(500).json({ error: 'Delete failed', details: error.message });
     }
   }
 

@@ -54,6 +54,13 @@ const mergeListsById = (...lists) => {
   return Array.from(merged.values())
 }
 
+const buildUserInfo = (user = {}) => {
+  const email = user.email || user.email_address || user.userEmail || ''
+  const firstName = user.first_name || user.firstname || user.firstName || user.given_name || user.givenName || ''
+  const lastName = user.last_name || user.lastname || user.lastName || user.family_name || user.familyName || ''
+  return { email, firstName, lastName }
+}
+
 const pruneLocalProjectsAgainstSheet = async (storageManager, localProjects, sheetProjects) => {
   if (!storageManager || !Array.isArray(sheetProjects)) return
   const sheetProjectIds = new Set(sheetProjects.map((project) => project?.id).filter(Boolean))
@@ -70,11 +77,9 @@ export default function Projects() {
   const [tasks, setTasks] = useState([])
   const [accounts, setAccounts] = useState([])
   const [expandedProjects, setExpandedProjects] = useState({})
-  const [showNewProject, setShowNewProject] = useState(false)
-  const [newProjectName, setNewProjectName] = useState('')
-  const [newProjectAccount, setNewProjectAccount] = useState('')
-  const [newProjectDueDate, setNewProjectDueDate] = useState('')
-  const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [showProjectForm, setShowProjectForm] = useState(false)
+  const [editingProject, setEditingProject] = useState(null)
+  const [isSavingProject, setIsSavingProject] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
@@ -207,48 +212,180 @@ export default function Projects() {
 
   const visibleProjects = projects
 
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim() || !storageManager) return
-    if (!newProjectAccount) {
+  const buildProjectSheetPayload = (projectRecord, accountName) => {
+    const sessionUser = session?.user || {}
+    const { email, firstName, lastName } = buildUserInfo(sessionUser)
+
+    return {
+      id: projectRecord.id,
+      name: projectRecord.name || '',
+      description: projectRecord.description || '',
+      userId: sessionUser.id || projectRecord.userId || '',
+      accountId: projectRecord.accountId || '',
+      accountName: accountName || '',
+      userEmail: email || projectRecord.userEmail || '',
+      userFirstName: firstName || projectRecord.userFirstName || '',
+      userLastName: lastName || projectRecord.userLastName || ''
+    }
+  }
+
+  const syncProjectToSheet = async (projectRecord, { method = 'POST', accountName = '' } = {}) => {
+    const response = await fetch('/api/google_sheets/projects', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildProjectSheetPayload(projectRecord, accountName))
+    })
+
+    if (!response.ok) {
+      let message = 'Failed to sync project to Google Sheets'
+      try {
+        const data = await response.json()
+        message = data?.error || data?.details || message
+      } catch (error) {
+        console.error('Error parsing project sync response:', error)
+      }
+      throw new Error(message)
+    }
+
+    return response.json()
+  }
+
+  const deleteProjectFromSheet = async (projectId) => {
+    const response = await fetch('/api/google_sheets/projects', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: projectId })
+    })
+
+    if (!response.ok) {
+      let message = 'Failed to delete project from Google Sheets'
+      try {
+        const data = await response.json()
+        message = data?.error || data?.details || message
+      } catch (error) {
+        console.error('Error parsing project delete response:', error)
+      }
+      throw new Error(message)
+    }
+
+    return response.json()
+  }
+
+  const handleNewProject = () => {
+    setEditingProject(null)
+    setShowProjectForm(true)
+  }
+
+  const handleEditProject = (project) => {
+    setEditingProject(project)
+    setShowProjectForm(true)
+  }
+
+  const handleSaveProject = async (formData, existingProject = null) => {
+    if (!storageManager) return
+    if (!formData?.name?.trim()) {
+      alert('Project name is required')
+      return
+    }
+    if (!formData?.accountId) {
       alert('Select an account for this project')
       return
     }
 
-    setIsCreatingProject(true)
+    setIsSavingProject(true)
     try {
-      const account = accounts.find((u) => u.id === newProjectAccount)
-      const accountName = account?.accountName || account?.name
+      const account = accounts.find((u) => u.id === formData.accountId)
+      const accountName = account?.accountName || account?.name || ''
       const isPersonal = accountName === 'Personal'
 
-      const project = storageManager.createProject({
-        name: newProjectName.trim(),
-        accountId: newProjectAccount,
+      const trimmedName = formData.name.trim()
+      const projectData = {
+        ...existingProject,
+        name: trimmedName,
+        description: formData.description || '',
+        accountId: formData.accountId,
         isPersonal,
-        dueDate: newProjectDueDate || null
-      })
-      await storageManager.saveProject(project)
-      const nextProjects = mergeListsById(projects, [project])
+        dueDate: formData.dueDate || null
+      }
+
+      let projectRecord
+      if (existingProject) {
+        projectRecord = projectData
+      } else {
+        projectRecord = storageManager.createProject(projectData)
+      }
+
+      const savedProject = await storageManager.saveProject(projectRecord)
+      try {
+        await syncProjectToSheet(savedProject, {
+          method: existingProject ? 'PUT' : 'POST',
+          accountName
+        })
+      } catch (error) {
+        console.error('Error syncing project to Google Sheets:', error)
+        alert(existingProject
+          ? 'Project updated locally, but failed to sync to Google Sheets.'
+          : 'Project saved locally, but failed to sync to Google Sheets.'
+        )
+      }
+
+      const nextProjects = mergeListsById(projects, [savedProject])
       setProjects(nextProjects)
 
       const userId = session?.user?.id
       if (userId) {
         const cached = readSheetCache(userId) || {}
-        const mergedProjects = mergeListsById(cached.projects, [project])
+        const mergedProjects = mergeListsById(cached.projects, [savedProject])
         writeSheetCache(userId, {
           accounts: cached.accounts || cached.tamUnits || accounts || [],
           projects: mergedProjects,
           tasks: cached.tasks || tasks || []
         })
       }
-      setNewProjectName('')
-      setNewProjectAccount('')
-      setNewProjectDueDate('')
-      setShowNewProject(false)
+
+      setShowProjectForm(false)
+      setEditingProject(null)
     } catch (error) {
-      console.error('Error creating project:', error)
-      alert('Error creating project')
+      console.error('Error saving project:', error)
+      alert('Error saving project')
     } finally {
-      setIsCreatingProject(false)
+      setIsSavingProject(false)
+    }
+  }
+
+  const handleDeleteProject = async (project) => {
+    if (!storageManager || !project?.id) return
+    if (!confirm('Are you sure you want to delete this project?')) return
+
+    try {
+      await storageManager.deleteProject(project.id)
+      try {
+        await deleteProjectFromSheet(project.id)
+      } catch (error) {
+        console.error('Error deleting project from Google Sheets:', error)
+        alert('Project deleted locally, but failed to delete from Google Sheets.')
+      }
+
+      setProjects((prev) => prev.filter((item) => item.id !== project.id))
+      setExpandedProjects((prev) => {
+        const next = { ...prev }
+        delete next[project.id]
+        return next
+      })
+
+      const userId = session?.user?.id
+      if (userId) {
+        const cached = readSheetCache(userId) || {}
+        const filteredProjects = (cached.projects || projects || []).filter((item) => item.id !== project.id)
+        writeSheetCache(userId, {
+          accounts: cached.accounts || cached.tamUnits || accounts || [],
+          projects: filteredProjects,
+          tasks: cached.tasks || tasks || []
+        })
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      alert('Error deleting project')
     }
   }
 
@@ -328,7 +465,7 @@ export default function Projects() {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => setShowNewProject(true)}
+                  onClick={handleNewProject}
                 >
                   + New Project
                 </button>
@@ -336,61 +473,17 @@ export default function Projects() {
 
               <section className="card">
                 <div className="card-title">Projects</div>
-                {showNewProject && (
-                  <div className="modal-overlay" onClick={() => setShowNewProject(false)}>
-                    <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>
-                      <div className="modal-header">
-                        <h2>New Project</h2>
-                        <button onClick={() => setShowNewProject(false)} className="btn-close">×</button>
-                      </div>
-                      <div className="task-form">
-                        <div className="form-group">
-                          <label>Project Name *</label>
-                          <input
-                            type="text"
-                            value={newProjectName}
-                            onChange={(e) => setNewProjectName(e.target.value)}
-                            placeholder="Project name"
-                          />
-                        </div>
-                        <div className="form-group">
-                          <label>Account *</label>
-                          <select
-                            value={newProjectAccount}
-                            onChange={(e) => setNewProjectAccount(e.target.value)}
-                          >
-                            <option value="">Select Account</option>
-                            {accounts.map((account) => (
-                              <option key={account.id} value={account.id}>
-                                {account.accountName || account.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="form-group">
-                          <label>Due Date</label>
-                          <input
-                            type="date"
-                            value={newProjectDueDate}
-                            onChange={(e) => setNewProjectDueDate(e.target.value)}
-                          />
-                        </div>
-                        <div className="form-actions">
-                          <button type="button" className="btn btn-secondary" onClick={() => setShowNewProject(false)}>
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCreateProject}
-                            className="btn btn-primary"
-                            disabled={isCreatingProject}
-                          >
-                            {isCreatingProject ? 'Creating...' : 'Create Project'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                {showProjectForm && (
+                  <ProjectFormModal
+                    project={editingProject}
+                    accounts={accounts}
+                    isSaving={isSavingProject}
+                    onClose={() => {
+                      setShowProjectForm(false)
+                      setEditingProject(null)
+                    }}
+                    onSave={handleSaveProject}
+                  />
                 )}
 
                 <div className="card-list">
@@ -408,13 +501,29 @@ export default function Projects() {
                               {getAccountName(project.accountId || project.tamUnitId)} • {projectTasks.length} tasks
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-small"
-                            onClick={() => toggleProject(project.id)}
-                          >
-                            {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
-                          </button>
+                          <div className="disclosure-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-small"
+                              onClick={() => handleEditProject(project)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-small"
+                              onClick={() => handleDeleteProject(project)}
+                            >
+                              Delete
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-small"
+                              onClick={() => toggleProject(project.id)}
+                            >
+                              {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
+                            </button>
+                          </div>
                         </div>
                         {expandedProjects[project.id] && (
                           <div className="nested-list">
@@ -448,6 +557,99 @@ export default function Projects() {
             </div>
           </footer>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ProjectFormModal({ project, accounts, isSaving, onClose, onSave }) {
+  const [formData, setFormData] = useState({
+    name: project?.name || '',
+    accountId: project?.accountId || project?.tamUnitId || '',
+    dueDate: project?.dueDate || '',
+    description: project?.description || project?.details || ''
+  })
+
+  useEffect(() => {
+    setFormData({
+      name: project?.name || '',
+      accountId: project?.accountId || project?.tamUnitId || '',
+      dueDate: project?.dueDate || '',
+      description: project?.description || project?.details || ''
+    })
+  }, [project])
+
+  const handleSubmit = (event) => {
+    event.preventDefault()
+    if (!formData.name.trim()) {
+      alert('Project name is required')
+      return
+    }
+    if (!formData.accountId) {
+      alert('Account is required')
+      return
+    }
+    onSave(formData, project)
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>{project ? 'Edit Project' : 'New Project'}</h2>
+          <button onClick={onClose} className="btn-close">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="task-form">
+          <div className="form-group">
+            <label>Project Name *</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Project name"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Account *</label>
+            <select
+              value={formData.accountId}
+              onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+              required
+            >
+              <option value="">Select Account</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.accountName || account.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Due Date</label>
+            <input
+              type="date"
+              value={formData.dueDate || ''}
+              onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows="4"
+            />
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={isSaving}>
+              {isSaving ? 'Saving...' : project ? 'Update Project' : 'Create Project'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

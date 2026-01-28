@@ -56,17 +56,18 @@ export const authOptions = {
         }
 
         const mergedUser = {
-          ...(sheetData && typeof sheetData === "object" ? sheetData : {}),
           ...session.user,
+          ...(sheetData && typeof sheetData === "object" ? sheetData : {}),
           image: token.picture || session.user.image
         };
 
         const resolvedUserId =
-          mergedUser.user_id ||
-          mergedUser.userId ||
+          sheetData?.id ||
+          sheetData?.user_id ||
+          sheetData?.userId ||
+          mergedUser.id ||
           mergedUser.email_address ||
           mergedUser.email ||
-          mergedUser.id ||
           token.sub;
 
         session.user = {

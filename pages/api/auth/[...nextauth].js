@@ -22,9 +22,9 @@ export const authOptions = {
       return true;
     },
 
-    async jwt({ token, user }) {
+    async jwt({ token, user, profile }) {
       if (user) {
-        token.picture = user.image || profile?.picture;
+        token.picture = user.image || profile?.picture || token.picture;
       }
 
       if (token?.email && !token.sheetData) {
@@ -41,13 +41,23 @@ export const authOptions = {
     async session({ session, token }) {
       if (session?.user) {
         if (!session.user.email?.endsWith("@braze.com")) return null;
-          const { email_address, ...otherSheetFields } = token.sheetData;
+        const sheetData =
+          token?.sheetData && typeof token.sheetData === "object" ? token.sheetData : null;
+        const { email_address, ...otherSheetFields } = sheetData || {};
 
-          session.user = {
-            ...session.user,
-            image: token.picture,
-            ...otherSheetFields
-          };
+        session.user = {
+          ...session.user,
+          image: token.picture || session.user.image,
+          ...otherSheetFields
+        };
+
+        if (!session.user.id) {
+          session.user.id =
+            sheetData?.id ||
+            sheetData?.user_id ||
+            token.sub ||
+            session.user.email;
+        }
       }
       return session;
     },

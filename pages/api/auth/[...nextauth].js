@@ -22,14 +22,18 @@ export const authOptions = {
       return true;
     },
 
-    async jwt({ token, user }) {
+    async jwt({ token, user, profile }) {
       if (user) {
-        token.picture = user.image || profile?.picture;
+        token.picture = user.image || profile?.picture || token.picture;
+        if (!token.email && user.email) {
+          token.email = user.email;
+        }
       }
 
-      if (token?.email && !token.sheetData) {
+      const tokenEmail = token?.email || user?.email;
+      if (tokenEmail && (!token.sheetData || typeof token.sheetData !== "object")) {
         try {
-          const sheetData = await getUser(token.email);
+          const sheetData = await getUser(tokenEmail);
           token.sheetData = sheetData;
         } catch (error) {
           console.error("Error fetching user from sheet during JWT phase:", error);
@@ -41,13 +45,39 @@ export const authOptions = {
     async session({ session, token }) {
       if (session?.user) {
         if (!session.user.email?.endsWith("@braze.com")) return null;
-          const { email_address, ...otherSheetFields } = token.sheetData;
+        let sheetData =
+          token?.sheetData && typeof token.sheetData === "object" ? token.sheetData : null;
+        if (!sheetData && session.user.email) {
+          try {
+            sheetData = await getUser(session.user.email);
+          } catch (error) {
+            console.error("Error fetching user from sheet during session phase:", error);
+          }
+        }
 
-          session.user = {
-            ...session.user,
-            image: token.picture,
-            ...otherSheetFields
-          };
+        const mergedUser = {
+          ...session.user,
+          ...(sheetData && typeof sheetData === "object" ? sheetData : {}),
+          image: token.picture || session.user.image
+        };
+
+        const resolvedUserId =
+          sheetData?.id ||
+          sheetData?.user_id ||
+          sheetData?.userId ||
+          mergedUser.id ||
+          mergedUser.email_address ||
+          mergedUser.email ||
+          token.sub;
+
+        session.user = {
+          ...mergedUser,
+          id: resolvedUserId
+        };
+
+        if (sheetData && typeof sheetData === "object") {
+          token.sheetData = sheetData;
+        }
       }
       return session;
     },

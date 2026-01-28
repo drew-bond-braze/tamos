@@ -1,5 +1,150 @@
 import { google } from 'googleapis';
 
+const normalizeKey = (value) => String(value ?? '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, '');
+
+const buildNormalizedRecord = (record = {}) => (
+  Object.entries(record).reduce((acc, [key, value]) => {
+    acc[normalizeKey(key)] = value;
+    return acc;
+  }, {})
+);
+
+const HEADER_ALIASES = {
+  id: ['id'],
+  name: ['title', 'taskname', 'task', 'summary'],
+  taskname: ['title', 'name', 'task'],
+  task: ['title', 'taskname', 'name'],
+  details: ['description', 'notes', 'detail'],
+  description: ['description', 'details', 'notes'],
+  category: ['category', 'type'],
+  iniative: ['initiative', 'program', 'initiative'],
+  nextstep: ['nextstep', 'next_step', 'lastupdatesummary', 'description', 'details'],
+  priority: ['priority', 'prio'],
+  status: ['status', 'state'],
+  accountid: ['accountid', 'tamunitid', 'account'],
+  accountname: ['accountname', 'tamunitname', 'account'],
+  tamunitid: ['accountid'],
+  tamunitname: ['accountname'],
+  projectid: ['projectid', 'project'],
+  projectname: ['projectname'],
+  dueat: ['dueat', 'duedate', 'due', 'targetdate', 'date'],
+  date: ['dueat', 'duedate', 'due', 'targetdate'],
+  duedate: ['dueat', 'date', 'targetdate'],
+  due: ['dueat', 'duedate', 'targetdate', 'date'],
+  targetdate: ['dueat', 'duedate', 'due', 'date'],
+  userid: ['userid', 'user_id', 'ownerid', 'owner_id', 'updateduserid'],
+  useremail: ['useremail', 'user_email', 'email', 'owner'],
+  userfirstname: ['userfirstname', 'firstname', 'first_name', 'givenname'],
+  userlastname: ['userlastname', 'lastname', 'last_name', 'familyname'],
+  ownerid: ['userid'],
+  assignedto: ['owner', 'assignee'],
+  assignee: ['owner', 'assignedto'],
+  owner: ['owner', 'assignee', 'assignedto', 'useremail'],
+  completed: ['completed', 'done', 'isdone'],
+  createdat: ['createdat', 'createddate'],
+  updatedat: ['updatedat', 'updateddate', 'lastupdateat'],
+  lastupdateat: ['updatedat'],
+  lastupdatesummary: ['description', 'notes'],
+  updateduserid: ['updateduserid', 'updatedby', 'updateduser', 'userid']
+};
+
+const findHeaderIndex = (headers, candidates) => {
+  const normalizedHeaders = headers.map(normalizeKey);
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeKey(candidate);
+    const index = normalizedHeaders.indexOf(normalizedCandidate);
+    if (index !== -1) return index;
+  }
+  return -1;
+};
+
+const formatCellValue = (value) => {
+  if (value === null || value === undefined) return '';
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return value;
+};
+
+const resolveHeaderValue = (header, normalizedData) => {
+  const normalizedHeader = normalizeKey(header);
+  if (!normalizedHeader) return '';
+
+  if (Object.prototype.hasOwnProperty.call(normalizedData, normalizedHeader)) {
+    return normalizedData[normalizedHeader];
+  }
+
+  const aliases = HEADER_ALIASES[normalizedHeader];
+  if (aliases) {
+    for (const alias of aliases) {
+      const normalizedAlias = normalizeKey(alias);
+      if (Object.prototype.hasOwnProperty.call(normalizedData, normalizedAlias)) {
+        return normalizedData[normalizedAlias];
+      }
+    }
+  }
+
+  if (normalizedHeader === 'createdat' || normalizedHeader === 'createddate') {
+    return new Date().toISOString();
+  }
+
+  if (normalizedHeader === 'updatedat' || normalizedHeader === 'updateddate') {
+    return new Date().toISOString();
+  }
+
+  return '';
+};
+
+const getTaskSheetHeaders = async (sheets, spreadsheetId) => {
+  const headerResponse = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'tasks!1:1'
+  });
+  const headers = headerResponse.data.values?.[0] || [];
+  if (headers.length === 0) {
+    throw new Error('No headers found in tasks sheet');
+  }
+  return headers;
+};
+
+const buildRowValues = (headers, taskData) => {
+  const normalizedTaskData = buildNormalizedRecord(taskData);
+  return headers.map((header) => (
+    formatCellValue(resolveHeaderValue(header, normalizedTaskData))
+  ));
+};
+
+const columnIndexToLetter = (index) => {
+  let result = '';
+  let current = index;
+  while (current > 0) {
+    const remainder = (current - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    current = Math.floor((current - 1) / 26);
+  }
+  return result;
+};
+
+const findTaskRowIndexById = async (sheets, spreadsheetId, taskId, idHeaderIndex) => {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'tasks!A:Z'
+  });
+  const rows = response.data.values;
+  if (!rows || rows.length <= 1) return null;
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (String(row[idHeaderIndex]) === String(taskId)) {
+      return index + 1;
+    }
+  }
+
+  return null;
+};
+
 export async function getTasksByUserId(userId) {
   try {
     const auth = new google.auth.GoogleAuth({
@@ -19,10 +164,13 @@ export async function getTasksByUserId(userId) {
     if (!rows || rows.length <= 1) return [];
 
     const headers = rows[0];
-    const ownerIndex = headers.indexOf('userId'); // Ensure this matches your column header
+    const ownerIndex = findHeaderIndex(headers, ['userId', 'user_id', 'ownerId', 'owner_id']);
+    if (ownerIndex === -1) {
+      throw new Error("Column 'userId' not found in tasks sheet");
+    }
 
     // Filter rows where owner matches the email
-    const userTasks = rows.slice(1).filter(row => row[ownerIndex] === userId);
+    const userTasks = rows.slice(1).filter(row => String(row[ownerIndex]) === String(userId));
 
     // Map rows to objects based on headers
     return userTasks.map(row => {
@@ -53,17 +201,8 @@ export async function addTask(taskData) {
     const sheets = google.sheets({ version: 'v4', auth });
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
-    // 1. Define the order of columns to match your Sheet headers exactly
-    // Example order: id, user_id, title, status, priority, dueDate, createdAt
-    const rowValues = [
-      taskData.id,
-      taskData.user_id,
-      taskData.title,
-      taskData.status,
-      taskData.priority,
-      taskData.dueDate,
-      new Date().toISOString() // createdAt timestamp
-    ];
+    const headers = await getTaskSheetHeaders(sheets, spreadsheetId);
+    const rowValues = buildRowValues(headers, taskData);
 
     const response = await sheets.spreadsheets.values.append({
       spreadsheetId,
@@ -78,6 +217,54 @@ export async function addTask(taskData) {
     return response.data;
   } catch (error) {
     console.error('Error appending task:', error);
+    throw error;
+  }
+}
+
+export async function updateTask(taskData) {
+  try {
+    if (!taskData?.id) {
+      throw new Error('Task id required for update');
+    }
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    const headers = await getTaskSheetHeaders(sheets, spreadsheetId);
+    const idHeaderIndex = findHeaderIndex(headers, ['id']);
+    if (idHeaderIndex === -1) {
+      throw new Error("Column 'id' not found in tasks sheet");
+    }
+
+    const rowIndex = await findTaskRowIndexById(sheets, spreadsheetId, taskData.id, idHeaderIndex);
+    if (!rowIndex) {
+      throw new Error('Task row not found');
+    }
+
+    const rowValues = buildRowValues(headers, taskData);
+    const lastColumn = columnIndexToLetter(headers.length);
+    const range = `tasks!A${rowIndex}:${lastColumn}${rowIndex}`;
+
+    const response = await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowValues],
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error updating task:', error);
     throw error;
   }
 }
@@ -102,10 +289,26 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const taskData = req.body;
+      if (!taskData || typeof taskData !== 'object') {
+        return res.status(400).json({ error: 'Task payload required' });
+      }
       const result = await addTask(taskData);
       return res.status(200).json({ success: true, result });
     } catch (error) {
       return res.status(500).json({ error: 'Write failed', details: error.message });
+    }
+  }
+
+  if (req.method === 'PUT') {
+    try {
+      const taskData = req.body;
+      if (!taskData || typeof taskData !== 'object') {
+        return res.status(400).json({ error: 'Task payload required' });
+      }
+      const result = await updateTask(taskData);
+      return res.status(200).json({ success: true, result });
+    } catch (error) {
+      return res.status(500).json({ error: 'Update failed', details: error.message });
     }
   }
 

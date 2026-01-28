@@ -40,7 +40,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "User ID required" });
   }
 
-  const cached = getCachedEntry(userId);
+  const force = req.query.force === 'true' || req.query.force === '1';
+  const cached = force ? null : getCachedEntry(userId);
   if (cached) {
     res.setHeader("X-Cache", "HIT");
     res.setHeader("Cache-Control", "private, max-age=0, s-maxage=600, stale-while-revalidate=600");

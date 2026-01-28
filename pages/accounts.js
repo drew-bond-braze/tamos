@@ -53,6 +53,7 @@ export default function Accounts() {
   const [expandedProjects, setExpandedProjects] = useState({})
   const [newAccountName, setNewAccountName] = useState('')
   const [isCreatingAccount, setIsCreatingAccount] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // const allowedAccounts = [
   //   'Bell Media',
@@ -110,6 +111,40 @@ export default function Accounts() {
       })
     } catch (error) {
       console.error('Error loading data:', error)
+    }
+  }
+
+  const handleRefresh = async () => {
+    const userId = session?.user?.id
+    if (!userId) return
+
+    setIsRefreshing(true)
+    try {
+      const encodedUserId = encodeURIComponent(userId)
+      const [summary, updates] = await Promise.all([
+        fetchSheetData(`/api/google_sheets/summary?userId=${encodedUserId}&force=1`, 'summary'),
+        fetchSheetData(`/api/google_sheets/updates?userId=${encodedUserId}`, 'updates')
+      ])
+
+      const nextAccounts = summary?.accounts ?? []
+      const nextProjects = summary?.projects ?? []
+      const nextTasks = summary?.tasks ?? []
+      const nextUpdates = Array.isArray(updates) ? updates : []
+
+      setAccounts(nextAccounts)
+      setProjects(nextProjects)
+      setTasks(nextTasks)
+
+      writeSheetCache(userId, {
+        accounts: nextAccounts,
+        projects: nextProjects,
+        tasks: nextTasks,
+        updates: nextUpdates
+      })
+    } catch (error) {
+      console.error('Error refreshing sheet data:', error)
+    } finally {
+      setIsRefreshing(false)
     }
   }
 
@@ -198,103 +233,120 @@ export default function Accounts() {
         <nav className="navbar">
           <div className="nav-container">
             <div className="nav-logo">
-              <h1>TAM OS</h1>
+              <h1>TAMos</h1>
             </div>
             <div className="nav-menu">
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/my-ics" className="nav-link">My ICs</Link>
+              <Link href="/my-ics" className="nav-link">My Team</Link>
               <Link href="/accounts" className="nav-link active">My Accounts</Link>
             </div>
           </div>
         </nav>
 
         <div className="app-main">
-          <div className="page-topbar">
-            <button 
-              onClick={() => signOut({ callbackUrl: '/' })} 
-              className="btn btn-secondary auth-button"
-            >
-              Sign out
-            </button>
-          </div>
           <main className="main-content">
-            <div className="dashboard-header">
-              <div>
-                <h1>My Accounts</h1>
-                <p>See projects by account and roll up tasks under each project.</p>
+            <div className="page-container">
+              <div className="page-actions">
+                <div className="dashboard-user">
+                  <button
+                    type="button"
+                    className="refresh-button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    aria-label="Refresh from Google Sheets"
+                    title="Refresh"
+                  >
+                    {isRefreshing ? '↻' : '↻'}
+                  </button>
+                  <span>{session.user?.name || session.user?.email}</span>
+                  <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                  <button
+                    onClick={() => signOut({ callbackUrl: '/' })}
+                    className="btn btn-secondary auth-button"
+                  >
+                    Sign out
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <section className="card">
-              <div className="card-title">Accounts</div>
-              <div className="card-list">
-                {accounts.map((account) => {
-                  const accountProjects = getAccountProjects(account)
-                  const accountName = account.accountName || account.name || 'Account'
-                  return (
-                    <div key={account.id} className="card-list-item">
-                      <div className="disclosure-row">
-                        <div>
-                          <div className="card-item-title">{accountName}</div>
-                          <div className="disclosure-meta">{accountProjects.length} projects</div>
-                        </div>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-small"
-                          onClick={() => toggleAccount(account.id)}
-                        >
-                          {expandedAccounts[account.id] ? 'Hide projects' : 'View projects'}
-                        </button>
-                      </div>
-                      {expandedAccounts[account.id] && (
-                        <div className="nested-list">
-                          {accountProjects.length === 0 ? (
-                            <div className="nested-item muted">No projects yet.</div>
-                          ) : (
-                            accountProjects.map((project) => {
-                              const projectTasks = getProjectTasks(project.id)
-                              return (
-                                <div key={project.id} className="nested-item">
-                                  <div className="disclosure-row">
-                                    <div>
-                                      <div className="card-item-title">{project.name}</div>
-                                      <div className="disclosure-meta">{projectTasks.length} tasks</div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary btn-small"
-                                      onClick={() => toggleProject(project.id)}
-                                    >
-                                      {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
-                                    </button>
-                                  </div>
-                                  {expandedProjects[project.id] && (
-                                    <div className="nested-list">
-                                      {projectTasks.length === 0 ? (
-                                        <div className="nested-item muted">No tasks assigned yet.</div>
-                                      ) : (
-                                        projectTasks.map((task) => (
-                                          <div key={task.id} className="nested-item">
-                                            <span>{task.name}</span>
-                                            <span className="muted">{task.status}</span>
-                                          </div>
-                                        ))
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+              <div className="dashboard-header">
+                <div>
+                  <h1>My Accounts</h1>
+                  <p>See projects by account and roll up tasks under each project.</p>
+                </div>
               </div>
-            </section>
+
+              <section className="card">
+                <div className="card-title">Accounts</div>
+                <div className="card-list">
+                  {accounts.map((account) => {
+                    const accountProjects = getAccountProjects(account)
+                    const accountName = account.accountName || account.name || 'Account'
+                    return (
+                      <div key={account.id} className="card-list-item">
+                        <div className="disclosure-row">
+                          <div>
+                            <div className="card-item-title">{accountName}</div>
+                            <div className="disclosure-meta">{accountProjects.length} projects</div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-small"
+                            onClick={() => toggleAccount(account.id)}
+                          >
+                            {expandedAccounts[account.id] ? 'Hide projects' : 'View projects'}
+                          </button>
+                        </div>
+                        {expandedAccounts[account.id] && (
+                          <div className="nested-list">
+                            {accountProjects.length === 0 ? (
+                              <div className="nested-item muted">No projects yet.</div>
+                            ) : (
+                              accountProjects.map((project) => {
+                                const projectTasks = getProjectTasks(project.id)
+                                return (
+                                  <div key={project.id} className="nested-item">
+                                    <div className="disclosure-row">
+                                      <div>
+                                        <div className="card-item-title">{project.name}</div>
+                                        <div className="disclosure-meta">{projectTasks.length} tasks</div>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary btn-small"
+                                        onClick={() => toggleProject(project.id)}
+                                      >
+                                        {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
+                                      </button>
+                                    </div>
+                                    {expandedProjects[project.id] && (
+                                      <div className="nested-list">
+                                        {projectTasks.length === 0 ? (
+                                          <div className="nested-item muted">No tasks assigned yet.</div>
+                                        ) : (
+                                          projectTasks.map((task) => (
+                                            <div key={task.id} className="nested-item">
+                                              <span>{task.name}</span>
+                                              <span className="muted">{task.status}</span>
+                                            </div>
+                                          ))
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            </div>
 
             {/* <section className="card">
               <div className="card-title">Add Account</div>
@@ -322,7 +374,7 @@ export default function Accounts() {
 
           <footer className="footer">
             <div className="container">
-              <p>&copy; 2024 TAM OS. All rights reserved.</p>
+              <p>&copy; 2026 TAMos. All rights reserved.</p>
             </div>
           </footer>
         </div>

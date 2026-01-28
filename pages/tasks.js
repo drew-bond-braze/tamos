@@ -45,6 +45,162 @@ const isCacheFresh = (cached) => {
   return Date.now() - cachedAt < CACHE_TTL_MS
 }
 
+const mergeById = (items = [], item) => {
+  if (!item?.id) return items
+  const nextItems = [...items]
+  const existingIndex = nextItems.findIndex((existing) => existing.id === item.id)
+  if (existingIndex >= 0) {
+    nextItems[existingIndex] = item
+    return nextItems
+  }
+  nextItems.push(item)
+  return nextItems
+}
+
+const mergeListsById = (...lists) => {
+  const merged = new Map()
+  lists.forEach((list) => {
+    (list || []).forEach((item) => {
+      if (!item?.id) return
+      merged.set(item.id, item)
+    })
+  })
+  return Array.from(merged.values())
+}
+
+const pruneLocalAgainstSheet = async (storageManager, localTasks, localProjects, sheetTasks, sheetProjects) => {
+  const sheetTaskIds = new Set((sheetTasks || []).map((task) => task?.id).filter(Boolean))
+  const sheetProjectIds = new Set((sheetProjects || []).map((project) => project?.id).filter(Boolean))
+
+  const prunedTasks = (localTasks || []).filter((task) => task?.id && sheetTaskIds.has(task.id))
+  const prunedProjects = (localProjects || []).filter((project) => project?.id && sheetProjectIds.has(project.id))
+
+  if (storageManager) {
+    const staleTasks = (localTasks || []).filter((task) => task?.id && !sheetTaskIds.has(task.id))
+    const staleProjects = (localProjects || []).filter((project) => project?.id && !sheetProjectIds.has(project.id))
+
+    for (const task of staleTasks) {
+      await storageManager.deleteTask(task.id)
+    }
+
+    if (typeof storageManager.deleteProject === 'function') {
+      for (const project of staleProjects) {
+        await storageManager.deleteProject(project.id)
+      }
+    }
+  }
+
+  return { prunedTasks, prunedProjects }
+}
+
+const getInitials = (name) => {
+  if (!name || name === 'Unassigned') return '?'
+  const parts = String(name).trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase()
+}
+
+const getOwnerDisplayName = (task, session) => {
+  const firstName = task?.userFirstName || task?.user_first_name || ''
+  const lastName = task?.userLastName || task?.user_last_name || ''
+  if (firstName) return firstName
+  if (lastName) return lastName
+
+  if (task?.owner) {
+    return task.owner.includes('@') ? task.owner.split('@')[0] : task.owner
+  }
+
+  if (task?.userEmail || task?.user_email) {
+    const email = task.userEmail || task.user_email
+    return email.includes('@') ? email.split('@')[0] : email
+  }
+
+  if (session?.user?.name) {
+    return session.user.name.split(/\s+/)[0]
+  }
+
+  return 'Unassigned'
+}
+
+const getOwnerProfile = (task, session) => {
+  const name = getOwnerDisplayName(task, session)
+  const sessionEmail = session?.user?.email
+  const sessionUserId = session?.user?.id
+  const matchesSession =
+    (sessionUserId && (task?.userId === sessionUserId || task?.user_id === sessionUserId)) ||
+    (sessionEmail && (task?.userEmail === sessionEmail || task?.user_email === sessionEmail))
+
+  return {
+    name,
+    avatarUrl: matchesSession ? session?.user?.image : null,
+    initials: getInitials(name)
+  }
+}
+
+const normalizeTaskRecord = (task) => {
+  if (!task) return task
+  const normalized = { ...task }
+
+  const accountId = normalized.accountId || normalized.tamUnitId || normalized.account_id
+  if (accountId && !normalized.accountId) normalized.accountId = accountId
+
+  const projectId = normalized.projectId || normalized.project_id || normalized.projectID || normalized.project
+  if (projectId && !normalized.projectId) normalized.projectId = projectId
+
+  const title = normalized.title || normalized.name || normalized.taskName || normalized.task || normalized.summary
+  if (title && !normalized.title) normalized.title = title
+
+  const description = normalized.description || normalized.details || normalized.nextStep || normalized.notes
+  if (description && !normalized.description) normalized.description = description
+
+  const dueDate = normalized.dueDate || normalized.dueAt || normalized.date || normalized.targetDate || normalized.targetdate
+  if (dueDate && !normalized.dueDate) normalized.dueDate = dueDate
+  if (normalized.dueAt || dueDate) {
+    normalized.dueAt = normalized.dueAt || dueDate
+  }
+
+  const userId = normalized.userId || normalized.user_id || normalized.ownerId || normalized.owner_id
+  if (userId && !normalized.userId) normalized.userId = userId
+  if (userId && !normalized.user_id) normalized.user_id = userId
+
+  const owner = normalized.owner || normalized.userEmail || normalized.user_email || normalized.assignee || normalized.assignedTo
+  if (owner && !normalized.owner) normalized.owner = owner
+
+  const firstName = normalized.userFirstName || normalized.user_first_name || ''
+  const lastName = normalized.userLastName || normalized.user_last_name || ''
+  if ((firstName || lastName) && (!normalized.owner || normalized.owner.includes('@'))) {
+    normalized.owner = firstName || lastName
+  }
+  if (!normalized.owner && normalized.userEmail) {
+    normalized.owner = normalized.userEmail.split('@')[0]
+  }
+
+  const createdAt = normalized.createdAt || normalized.created_at || normalized.createddate || normalized.createdDate
+  if (createdAt && !normalized.createdAt) normalized.createdAt = createdAt
+
+  const updatedAt = normalized.updatedAt || normalized.updated_at || normalized.updateddate || normalized.updatedDate || normalized.lastUpdateAt
+  if (updatedAt && !normalized.updatedAt) normalized.updatedAt = updatedAt
+  if (updatedAt && !normalized.lastUpdateAt) normalized.lastUpdateAt = updatedAt
+
+  const accountName = normalized.accountName || normalized.tamUnitName || normalized.account_name
+  if (accountName && !normalized.accountName) normalized.accountName = accountName
+
+  const projectName = normalized.projectName || normalized.project_name
+  if (projectName && !normalized.projectName) normalized.projectName = projectName
+
+  if (typeof normalized.completed === 'undefined' && normalized.status) {
+    normalized.completed = normalized.status === 'Done'
+  }
+
+  if (!normalized.lastUpdateSummary) {
+    const summary = normalized.nextStep || normalized.details
+    if (summary) normalized.lastUpdateSummary = summary
+  }
+
+  return normalized
+}
+
 export default function Tasks() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -59,6 +215,8 @@ export default function Tasks() {
   const [showTaskDrawer, setShowTaskDrawer] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isPageLoading, setIsPageLoading] = useState(true)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -104,17 +262,22 @@ export default function Tasks() {
       }
 
       const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? localAccounts ?? []
-      const nextProjects = summary?.projects ?? cachedData.projects ?? localProjects ?? []
+      const sheetProjects = summary?.projects ?? cachedData.projects ?? []
       const sheetTasks = summary?.tasks ?? cachedData.tasks ?? []
-      const combinedTasks = [...(localTasks || []), ...(sheetTasks || [])]
-      const normalizedTasks = combinedTasks.map((task) => {
-        if (!task || task.accountId || !task.tamUnitId) {
-          return task;
-        }
-        const { tamUnitId, ...rest } = task;
-        return { ...rest, accountId: tamUnitId };
-      });
-      const uniqueTasks = Array.from(new Map(normalizedTasks.map(t => [t.id, t])).values());
+
+      let filteredLocalTasks = localTasks || []
+      let filteredLocalProjects = localProjects || []
+
+      if (summary && Array.isArray(summary.tasks) && Array.isArray(summary.projects)) {
+        const pruned = await pruneLocalAgainstSheet(storageManager, localTasks, localProjects, summary.tasks, summary.projects)
+        filteredLocalTasks = pruned.prunedTasks
+        filteredLocalProjects = pruned.prunedProjects
+      }
+
+      const nextProjects = mergeListsById(filteredLocalProjects, cachedData.projects, summary?.projects)
+      const combinedTasks = [...filteredLocalTasks, ...(sheetTasks || [])]
+      const normalizedTasks = combinedTasks.map(normalizeTaskRecord).filter(Boolean)
+      const uniqueTasks = Array.from(new Map(normalizedTasks.map(t => [t.id, t])).values())
 
       setTasks(uniqueTasks)
       setClients(clientsData)
@@ -133,30 +296,57 @@ export default function Tasks() {
     }
   }
 
+  const refreshTaskData = async () => {
+    if (!storageManager) return
+    const userId = session?.user?.id
+    const cached = userId ? readSheetCache(userId) : null
+    await loadData(storageManager, userId, cached || {})
+  }
+
   useEffect(() => {
     if (status !== "authenticated" || !storageManager) return
     const userId = session?.user?.id
     if (!userId) return
 
-    const cached = readSheetCache(userId)
-    if (cached) {
-      setAccounts(cached.accounts || cached.tamUnits || [])
-      setProjects(cached.projects || [])
-      setTasks(cached.tasks || [])
+    let isCancelled = false
+
+    const run = async () => {
+      setIsPageLoading(true)
+      const cached = readSheetCache(userId)
+      if (cached) {
+        setAccounts(cached.accounts || cached.tamUnits || [])
+        setProjects(cached.projects || [])
+        setTasks(cached.tasks || [])
+      }
+
+      const skipSheetFetch = Boolean(cached && isCacheFresh(cached))
+      try {
+        await loadData(storageManager, userId, cached || {}, skipSheetFetch)
+      } finally {
+        if (!isCancelled) {
+          setIsPageLoading(false)
+        }
+      }
     }
 
-    const skipSheetFetch = Boolean(cached && isCacheFresh(cached))
-    loadData(storageManager, userId, cached || {}, skipSheetFetch)
+    run()
+
+    return () => {
+      isCancelled = true
+    }
   }, [status, session?.user?.id, storageManager])
 
   const getFilteredTasks = () => {
     let filtered = [...tasks]
+    let hasCustomSort = false
 
     // Apply view filters
     switch (filterView) {
-      case 'my-tasks':
-        filtered = filtered.filter(t => t.user_id === session?.user?.id)
+      case 'my-tasks': {
+        const userId = session?.user?.id
+        filtered = filtered.filter(t => t.user_id === userId || t.userId === userId)
         break
+      }
       case 'due-this-week':
         const now = new Date()
         const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -166,14 +356,22 @@ export default function Tasks() {
           return dueDate <= weekFromNow && dueDate >= now
         })
         break
-      case 'recently-updated':
+      case 'recently-updated': {
         const daysAgo = new Date()
         daysAgo.setDate(daysAgo.getDate() - 7)
         filtered = filtered.filter(t => {
-          if (!t.lastUpdateAt) return false
-          return new Date(t.lastUpdateAt) >= daysAgo
+          const updatedAt = t.lastUpdateAt || t.updatedAt
+          if (!updatedAt) return false
+          return new Date(updatedAt) >= daysAgo
         })
+        filtered.sort((a, b) => {
+          const aUpdated = new Date(a.lastUpdateAt || a.updatedAt || 0)
+          const bUpdated = new Date(b.lastUpdateAt || b.updatedAt || 0)
+          return bUpdated - aUpdated
+        })
+        hasCustomSort = true
         break
+      }
       case 'by-client':
         if (selectedAccount !== 'all') {
           filtered = filtered.filter(t => (t.accountId || t.tamUnitId) === selectedAccount)
@@ -181,21 +379,23 @@ export default function Tasks() {
         break
     }
 
-    // Sort by priority and due date
-    filtered.sort((a, b) => {
-      const priorityOrder = { 'P0': 0, 'High': 0, 'P1': 1, 'Medium': 1, 'P2': 2, 'Low': 2 }
-      const aPriority = priorityOrder[a.priority] ?? 3
-      const bPriority = priorityOrder[b.priority] ?? 3
-      if (aPriority !== bPriority) return aPriority - bPriority
-      
-      if (a.dueDate && b.dueDate) {
-        return new Date(a.dueDate) - new Date(b.dueDate)
-      }
-      if (a.dueDate) return -1
-      if (b.dueDate) return 1
-      
-      return new Date(b.lastUpdateAt || b.createdAt) - new Date(a.lastUpdateAt || a.createdAt)
-    })
+    if (!hasCustomSort) {
+      // Sort by priority and due date
+      filtered.sort((a, b) => {
+        const priorityOrder = { 'P0': 0, 'High': 0, 'P1': 1, 'Medium': 1, 'P2': 2, 'Low': 2 }
+        const aPriority = priorityOrder[a.priority] ?? 3
+        const bPriority = priorityOrder[b.priority] ?? 3
+        if (aPriority !== bPriority) return aPriority - bPriority
+
+        if (a.dueDate && b.dueDate) {
+          return new Date(a.dueDate) - new Date(b.dueDate)
+        }
+        if (a.dueDate) return -1
+        if (b.dueDate) return 1
+
+        return new Date(b.lastUpdateAt || b.updatedAt || b.createdAt) - new Date(a.lastUpdateAt || a.updatedAt || a.createdAt)
+      })
+    }
 
     return filtered
   }
@@ -303,12 +503,26 @@ export default function Tasks() {
     setShowTaskForm(true)
   }
 
-  const handleTaskSaved = () => {
+  const handleTaskSaved = (savedTask) => {
     setShowTaskForm(false)
     setEditingTask(null)
-    if (storageManager) {
-      loadData(storageManager)
+    if (savedTask) {
+      const normalizedTask = normalizeTaskRecord(savedTask)
+      setTasks((prev) => mergeById(prev, normalizedTask))
+
+      const userId = session?.user?.id
+      if (userId) {
+        const cached = readSheetCache(userId) || {}
+        const nextTasks = mergeById(cached.tasks || tasks || [], normalizedTask)
+        writeSheetCache(userId, {
+          accounts: cached.accounts || cached.tamUnits || accounts || [],
+          projects: cached.projects || projects || [],
+          tasks: nextTasks
+        })
+      }
+      return
     }
+    refreshTaskData()
   }
 
   const handleTaskDeleted = async (taskId) => {
@@ -317,7 +531,7 @@ export default function Tasks() {
     
     try {
       await storageManager.deleteTask(taskId)
-      await loadData(storageManager)
+      await refreshTaskData()
       if (selectedTask?.id === taskId) {
         closeTaskDrawer()
       }
@@ -325,6 +539,66 @@ export default function Tasks() {
       console.error('Error deleting task:', error)
       alert('Error deleting task')
     }
+  }
+
+  const handleRefresh = async () => {
+    const userId = session?.user?.id
+    if (!userId) return
+
+    setIsRefreshing(true)
+    try {
+      const encodedUserId = encodeURIComponent(userId)
+      const [summary, updates] = await Promise.all([
+        fetchSheetData(`/api/google_sheets/summary?userId=${encodedUserId}&force=1`, 'summary'),
+        fetchSheetData(`/api/google_sheets/updates?userId=${encodedUserId}`, 'updates')
+      ])
+
+      if (!summary) return
+
+      const nextAccounts = summary?.accounts ?? []
+      const nextProjects = summary?.projects ?? []
+      const nextTasks = (summary?.tasks ?? []).map(normalizeTaskRecord).filter(Boolean)
+      const nextUpdates = Array.isArray(updates) ? updates : []
+
+      setAccounts(nextAccounts)
+      setProjects(nextProjects)
+      setTasks(nextTasks)
+
+      if (storageManager && Array.isArray(summary?.tasks) && Array.isArray(summary?.projects)) {
+        const [localTasks, localProjects] = await Promise.all([
+          storageManager.getTasks(),
+          storageManager.getProjects()
+        ])
+        await pruneLocalAgainstSheet(storageManager, localTasks, localProjects, summary.tasks, summary.projects)
+      }
+
+      writeSheetCache(userId, {
+        accounts: nextAccounts,
+        projects: nextProjects,
+        tasks: summary?.tasks ?? [],
+        updates: nextUpdates
+      })
+    } catch (error) {
+      console.error('Error refreshing sheet data:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  const handleProjectCreated = (project) => {
+    if (!project) return
+    setProjects((prev) => mergeById(prev, project))
+
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const cached = readSheetCache(userId) || {}
+    const nextProjects = mergeById(cached.projects || [], project)
+    writeSheetCache(userId, {
+      accounts: cached.accounts || cached.tamUnits || accounts || [],
+      projects: nextProjects,
+      tasks: cached.tasks || tasks || []
+    })
   }
 
   if (status === "loading") {
@@ -335,6 +609,14 @@ export default function Tasks() {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <p>Redirecting to sign in...</p>
+      </div>
+    )
+  }
+
+  if (isPageLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <p>Loading tasks...</p>
       </div>
     )
   }
@@ -352,79 +634,98 @@ export default function Tasks() {
         <nav className="navbar">
           <div className="nav-container">
             <div className="nav-logo">
-              <h1>TAM OS</h1>
+              <h1>TAMos</h1>
             </div>
             <div className="nav-menu">
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link active">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/my-ics" className="nav-link">My ICs</Link>
+              <Link href="/my-ics" className="nav-link">My Team</Link>
               <Link href="/accounts" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>
 
         <div className="app-main">
-          <div className="page-topbar">
-            <button 
-              onClick={() => signOut({ callbackUrl: '/' })} 
-              className="btn btn-secondary auth-button"
-            >
-              Sign out
-            </button>
-          </div>
           <main className="main-content">
-            <div className="tasks-container">
-              <div className="tasks-header">
-                <div>
-                  <h1 className="page-title">Task Tracker</h1>
-                  <p className="page-subtitle">Track tasks and projects per client</p>
+            <div className="page-container">
+              <div className="tasks-container">
+                <div className="page-actions">
+                  <div className="dashboard-user">
+                    <button
+                      type="button"
+                      className="refresh-button"
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      aria-label="Refresh from Google Sheets"
+                      title="Refresh"
+                    >
+                      ↻
+                    </button>
+                    <span>{session.user?.name || session.user?.email}</span>
+                    <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                    <button
+                      onClick={() => signOut({ callbackUrl: '/' })}
+                      className="btn btn-secondary auth-button"
+                    >
+                      Sign out
+                    </button>
+                  </div>
                 </div>
-                <button onClick={handleNewTask} className="btn btn-primary">
-                  + New Task
-                </button>
-              </div>
 
-              <div className="tasks-filters">
-                <div className="filter-tabs">
-                  <button 
-                    className={filterView === 'all' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('all')}
-                  >
-                    All Tasks
-                  </button>
-                  <button 
-                    className={filterView === 'my-tasks' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('my-tasks')}
-                  >
-                    My Tasks
-                  </button>
-                  <button 
-                    className={filterView === 'due-this-week' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('due-this-week')}
-                  >
-                    Due This Week
-                  </button>
-                  <button 
-                    className={filterView === 'recently-updated' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('recently-updated')}
-                  >
-                    Recently Updated
-                  </button>
-                  <button 
-                    className={filterView === 'by-client' ? 'filter-tab active' : 'filter-tab'}
-                    onClick={() => setFilterView('by-client')}
-                  >
-                    By Account
+                <div className="dashboard-header">
+                  <div>
+                    <h1>Task Tracker</h1>
+                    <p>Track tasks and projects per client</p>
+                  </div>
+                </div>
+
+                <div className="page-actions">
+                  <button onClick={handleNewTask} className="btn btn-primary">
+                    + New Task
                   </button>
                 </div>
 
-                {filterView === 'by-client' && (
-                  <div className="client-filter">
+                <div className="tasks-filters">
+                  <div className="filter-tabs">
+                    <button 
+                      className={filterView === 'all' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('all')}
+                    >
+                      All Tasks
+                    </button>
+                    <button 
+                      className={filterView === 'my-tasks' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('my-tasks')}
+                    >
+                      My Tasks
+                    </button>
+                    <button 
+                      className={filterView === 'due-this-week' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('due-this-week')}
+                    >
+                      Due This Week
+                    </button>
+                    <button 
+                      className={filterView === 'recently-updated' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('recently-updated')}
+                    >
+                      Recently Updated
+                    </button>
+                    <button 
+                      className={filterView === 'by-client' ? 'filter-tab active' : 'filter-tab'}
+                      onClick={() => setFilterView('by-client')}
+                    >
+                      By Account
+                    </button>
+
+                  <div className={`client-filter ${filterView === 'by-client' ? 'is-visible' : 'is-hidden'}`}>
                     <select 
                       value={selectedAccount}
                       onChange={(e) => setSelectedAccount(e.target.value)}
                       className="client-select"
+                      aria-hidden={filterView !== 'by-client'}
+                      disabled={filterView !== 'by-client'}
                     >
                       <option value="all">All Accounts</option>
                       {accounts.map((account) => (
@@ -434,53 +735,61 @@ export default function Tasks() {
                       ))}
                     </select>
                   </div>
-                )}
-              </div>
+                  </div>
+                </div>
 
-              <div className="tasks-table-container">
-                <table className="tasks-table">
-                  <thead>
-                    <tr>
-                      <th>Account</th>
-                      <th>Project</th>
-                      <th>Task</th>
-                      <th>Status</th>
-                      <th>Due Date</th>
-                      <th>Priority</th>
-                      <th>Owner</th>
-                      <th>Last Update</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTasks.length === 0 ? (
+                <div className="tasks-table-container">
+                  <table className="tasks-table">
+                    <thead>
                       <tr>
-                        <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
-                          <p>No tasks found. <button onClick={handleNewTask} className="btn-link">Create your first task</button></p>
-                        </td>
+                        <th>Account</th>
+                        <th>Project</th>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th>Due Date</th>
+                        <th>Priority</th>
+                        <th>Owner</th>
+                        <th>Last Update</th>
                       </tr>
-                    ) : (
-                      filteredTasks.map(task => (
-                        <tr 
-                          key={task.id} 
-                          className="task-row"
-                          onClick={() => openTaskDetail(task)}
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <td>{task.accountName || getAccountName(task.accountId || task.tamUnitId)}</td>
-                          <td>{getProjectName(task.projectId)}</td>
-                          <td className="task-title-cell">
-                            <strong>{task.title}</strong>
+                    </thead>
+                    <tbody>
+                      {filteredTasks.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '40px' }}>
+                            <p>No tasks found. <button onClick={handleNewTask} className="btn-link">Create your first task</button></p>
                           </td>
-                          <td>{getStatusBadge(task.status)}</td>
-                          <td>{formatDate(task.dueDate)}</td>
-                          <td>{getPriorityBadge(task.priority)}</td>
-                          <td>{task.owner || '—'}</td>
-                          <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredTasks.map(task => {
+                          const ownerProfile = getOwnerProfile(task, session)
+                          return (
+                            <tr 
+                              key={task.id} 
+                              className="task-row"
+                              onClick={() => openTaskDetail(task)}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              <td>{task.accountName || getAccountName(task.accountId || task.tamUnitId)}</td>
+                              <td>{task.projectName || getProjectName(task.projectId)}</td>
+                              <td className="task-title-cell">
+                                <strong>{task.title || task.name || task.taskName || task.task || 'Untitled task'}</strong>
+                              </td>
+                              <td>{getStatusBadge(task.status)}</td>
+                              <td>{formatDate(task.dueDate || task.dueAt || task.date)}</td>
+                              <td>{getPriorityBadge(task.priority)}</td>
+                              <td>
+                                <div className="owner-cell">
+                                  <span className="owner-name">{ownerProfile.name}</span>
+                                </div>
+                              </td>
+                              <td className="last-update-cell">{formatDateTime(task.lastUpdateAt)}</td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </main>
@@ -501,7 +810,7 @@ export default function Tasks() {
           onDelete={() => handleTaskDeleted(selectedTask.id)}
           onUpdate={() => {
             if (storageManager) {
-              loadData(storageManager)
+              refreshTaskData()
               storageManager.getTask(selectedTask.id).then(updated => {
                 setSelectedTask(updated)
               })
@@ -523,17 +832,15 @@ export default function Tasks() {
             setEditingTask(null)
           }}
           onSave={handleTaskSaved}
-          onClientCreated={() => {
-            if (storageManager) {
-              loadData(storageManager)
-            }
+          onClientCreated={(project) => {
+            handleProjectCreated(project)
           }}
         />
       )}
 
           <footer className="footer">
             <div className="container">
-              <p>&copy; 2024 TAM OS. All rights reserved.</p>
+              <p>&copy; 2026 TAMos. All rights reserved.</p>
             </div>
           </footer>
         </div>
@@ -547,6 +854,8 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
   const [updates, setUpdates] = useState([])
   const [newUpdate, setNewUpdate] = useState({ body: '', updateType: 'Comment' })
   const [isSaving, setIsSaving] = useState(false)
+  const [editingUpdateId, setEditingUpdateId] = useState(null)
+  const [editUpdateForm, setEditUpdateForm] = useState({ body: '', updateType: 'Comment' })
 
   useEffect(() => {
     if (storageManager && task) {
@@ -554,11 +863,73 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     }
   }, [task, storageManager])
 
-  const loadUpdates = async () => {
-    if (!storageManager || !task) return
+  const fetchSheetUpdates = async (taskId) => {
     try {
-      const taskUpdates = await storageManager.getTaskUpdates(task.id)
-      setUpdates(taskUpdates)
+      const response = await fetch(`/api/google_sheets/updates?taskId=${encodeURIComponent(taskId)}`, { method: 'GET' })
+      if (!response.ok) {
+        console.error('Failed to fetch sheet updates:', response.statusText)
+        return null
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Network error fetching sheet updates:', error)
+      return null
+    }
+  }
+
+  const normalizeUpdateRecord = (update, fallbackId) => {
+    if (!update) return null
+    const createdAt = update.createdAt || update.created_at || update.createdAt || update.created
+    return {
+      id: update.id || fallbackId,
+      taskId: update.taskId || update.task_id || task.id,
+      accountId: update.accountId || update.account_id || task.accountId || task.tamUnitId || null,
+      projectId: update.projectId || update.project_id || task.projectId || null,
+      userId: update.userId || update.user_id || null,
+      userName: update.userName || update.user_name || update.author || update.userEmail || update.user_email || 'Unknown',
+      author: update.author || update.userName || update.user_name || update.userEmail || update.user_email || 'Unknown',
+      note: update.note || update.body || '',
+      updateType: update.updateType || update.type || update.category || 'Comment',
+      body: update.body || update.note || '',
+      statusAfter: update.statusAfter || update.status_after || null,
+      createdAt: createdAt || new Date().toISOString(),
+      updatedAt: update.updatedAt || update.updated_at || null,
+      updatedUserId: update.updatedUserId || update.updated_user_id || null
+    }
+  }
+
+  const loadUpdates = async () => {
+    if (!task) return
+    try {
+      const [localUpdates, sheetUpdatesResponse] = await Promise.all([
+        storageManager ? storageManager.getTaskUpdates(task.id) : [],
+        fetchSheetUpdates(task.id)
+      ])
+
+      const sheetUpdates = Array.isArray(sheetUpdatesResponse) ? sheetUpdatesResponse : []
+      const normalizedSheetUpdates = sheetUpdates
+        .map((update, index) => normalizeUpdateRecord(update, `${task.id}-sheet-${index}`))
+        .filter(Boolean)
+      const normalizedLocalUpdates = (localUpdates || [])
+        .map((update, index) => normalizeUpdateRecord(update, update.id || `${task.id}-local-${index}`))
+        .filter(Boolean)
+
+      if (storageManager && Array.isArray(sheetUpdatesResponse)) {
+        const sheetUpdateIds = new Set(normalizedSheetUpdates.map((update) => update.id).filter(Boolean))
+        const staleUpdates = normalizedLocalUpdates.filter((update) => update.id && !sheetUpdateIds.has(update.id))
+        for (const update of staleUpdates) {
+          await storageManager.deleteTaskUpdate(update.id)
+        }
+      }
+
+      const mergedUpdates = Array.from(new Map(
+        [...normalizedSheetUpdates, ...normalizedLocalUpdates].map(update => [update.id, update])
+      ).values())
+
+      mergedUpdates.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+      setUpdates(mergedUpdates)
     } catch (error) {
       console.error('Error loading updates:', error)
     }
@@ -577,6 +948,177 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     return project ? project.name : 'Unknown Project'
   }
 
+  const accountLabel = task.accountName || getAccountName(task.accountId || task.tamUnitId)
+  const projectLabel = task.projectName || getProjectName(task.projectId)
+  const taskTitle = task.title || task.name || task.taskName || task.task || 'Untitled task'
+  const taskDescription = task.description || task.details || task.nextStep
+  const ownerProfile = getOwnerProfile(task, session)
+
+  const buildUpdateUserName = () => {
+    const firstName =
+      session?.user?.userFirstName ||
+      session?.user?.firstName ||
+      session?.user?.first_name ||
+      session?.user?.given_name ||
+      ''
+    const lastName =
+      session?.user?.userLastName ||
+      session?.user?.lastName ||
+      session?.user?.last_name ||
+      session?.user?.family_name ||
+      ''
+    const fullName = [firstName, lastName].filter(Boolean).join(' ')
+    if (fullName) return fullName
+    if (session?.user?.name) return session.user.name
+    if (session?.user?.email) return session.user.email.split('@')[0]
+    return 'Unknown'
+  }
+
+  const formatUpdateAuthor = (update) => {
+    const rawName =
+      update?.userName ||
+      update?.user_name ||
+      update?.author ||
+      update?.userEmail ||
+      update?.user_email ||
+      'Unknown'
+
+    if (!rawName.includes('@')) return rawName
+
+    const localPart = rawName.split('@')[0]
+    const parts = localPart.split(/[._-]+/).filter(Boolean)
+    if (parts.length === 0) return rawName
+    return parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+  }
+
+  const syncUpdateToSheet = async (updateRecord, { method = 'POST' } = {}) => {
+    const userId = session?.user?.id || session?.user?.userId || session?.user?.user_id || ''
+    if (method === 'DELETE') {
+      const response = await fetch('/api/google_sheets/updates', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: updateRecord.id })
+      })
+
+      if (!response.ok) {
+        let message = 'Failed to delete update from Google Sheets'
+        try {
+          const data = await response.json()
+          message = data?.error || data?.details || message
+        } catch (error) {
+          console.error('Error parsing update delete response:', error)
+        }
+        throw new Error(message)
+      }
+
+      return response.json()
+    }
+
+    const now = new Date().toISOString()
+    const isUpdate = method === 'PUT'
+    const payload = {
+      id: updateRecord.id,
+      taskId: updateRecord.taskId || task.id,
+      accountId: task.accountId || task.tamUnitId || '',
+      projectId: task.projectId || '',
+      note: updateRecord.body || updateRecord.note || '',
+      category: updateRecord.updateType || updateRecord.category || 'Comment',
+      userId,
+      userName: buildUpdateUserName(),
+      createdAt: updateRecord.createdAt || now,
+      updatedAt: isUpdate ? now : (updateRecord.updatedAt || updateRecord.createdAt || now),
+      updatedUserId: userId
+    }
+
+    const response = await fetch('/api/google_sheets/updates', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      let message = 'Failed to sync update to Google Sheets'
+      try {
+        const data = await response.json()
+        message = data?.error || data?.details || message
+      } catch (error) {
+        console.error('Error parsing update sync response:', error)
+      }
+      throw new Error(message)
+    }
+
+    return response.json()
+  }
+
+  const startEditUpdate = (update) => {
+    setEditingUpdateId(update.id)
+    setEditUpdateForm({
+      body: update.body || update.note || '',
+      updateType: update.updateType || update.category || 'Comment'
+    })
+  }
+
+  const cancelEditUpdate = () => {
+    setEditingUpdateId(null)
+    setEditUpdateForm({ body: '', updateType: 'Comment' })
+  }
+
+  const handleSaveUpdateEdit = async (update) => {
+    if (!editUpdateForm.body.trim()) return
+
+    setIsSaving(true)
+    try {
+      const userId = session?.user?.id || session?.user?.userId || session?.user?.user_id || ''
+      const now = new Date().toISOString()
+      const updatedUpdate = {
+        ...update,
+        body: editUpdateForm.body,
+        note: editUpdateForm.body,
+        updateType: editUpdateForm.updateType,
+        category: editUpdateForm.updateType,
+        updatedAt: now,
+        updatedUserId: userId
+      }
+
+      if (storageManager) {
+        await storageManager.deleteTaskUpdate(update.id)
+        await storageManager.saveTaskUpdate({
+          ...updatedUpdate,
+          createdAt: update.createdAt || now
+        })
+      }
+
+      await syncUpdateToSheet(updatedUpdate, { method: 'PUT' })
+      cancelEditUpdate()
+      await loadUpdates()
+      onUpdate()
+    } catch (error) {
+      console.error('Error updating update:', error)
+      alert('Error updating update')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteUpdate = async (update) => {
+    if (!confirm('Are you sure you want to delete this update?')) return
+
+    setIsSaving(true)
+    try {
+      if (storageManager) {
+        await storageManager.deleteTaskUpdate(update.id)
+      }
+      await syncUpdateToSheet(update, { method: 'DELETE' })
+      await loadUpdates()
+      onUpdate()
+    } catch (error) {
+      console.error('Error deleting update:', error)
+      alert('Error deleting update')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const handleAddUpdate = async () => {
     if (!newUpdate.body.trim() || !storageManager) return
     
@@ -584,13 +1126,19 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
     try {
       const update = storageManager.createTaskUpdate({
         taskId: task.id,
-        author: session.user?.email || session.user?.name || 'Unknown',
+        author: buildUpdateUserName(),
         updateType: newUpdate.updateType,
         body: newUpdate.body,
         statusAfter: newUpdate.statusAfter || null
       })
       
       await storageManager.saveTaskUpdate(update)
+      try {
+        await syncUpdateToSheet(update)
+      } catch (error) {
+        console.error('Error syncing update to Google Sheets:', error)
+        alert('Update saved locally, but failed to sync to Google Sheets.')
+      }
       setNewUpdate({ body: '', updateType: 'Comment' })
       await loadUpdates()
       onUpdate()
@@ -607,9 +1155,11 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
       <div className="task-drawer" onClick={(e) => e.stopPropagation()}>
         <div className="task-drawer-header">
           <div>
-            <h2>{task.title}</h2>
+            <div className="task-drawer-title">
+              <h2>{taskTitle}</h2>
+            </div>
             <p className="task-drawer-meta">
-              {accountLabel} • {getProjectName(task.projectId)} • Owner: {task.owner || 'Unassigned'}
+              {accountLabel} • {projectLabel} • Owner: {ownerProfile.name}
             </p>
           </div>
           <div className="task-drawer-actions">
@@ -624,17 +1174,17 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
             <h3>Details</h3>
             <div className="task-details-grid">
               <div><strong>Status:</strong> {task.status}</div>
-              <div><strong>Project:</strong> {getProjectName(task.projectId)}</div>
+              <div><strong>Project:</strong> {projectLabel}</div>
               <div><strong>Priority:</strong> {task.priority}</div>
-              <div><strong>Due Date:</strong> {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '—'}</div>
+              <div><strong>Due Date:</strong> {task.dueDate || task.dueAt || task.date ? new Date(task.dueDate || task.dueAt || task.date).toLocaleDateString() : '—'}</div>
               <div><strong>Account:</strong> {accountLabel}</div>
             </div>
           </div>
 
-          {task.description && (
+          {taskDescription && (
             <div className="task-drawer-section">
               <h3>Description</h3>
-              <p>{task.description}</p>
+              <p>{taskDescription}</p>
             </div>
           )}
 
@@ -644,23 +1194,88 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
               {updates.length === 0 ? (
                 <p style={{ color: '#666', fontStyle: 'italic' }}>No updates yet</p>
               ) : (
-                updates.map(update => (
-                  <div key={update.id} className="timeline-item">
-                    <div className="timeline-header">
-                      <strong>{update.author}</strong>
-                      <span className="timeline-type">{update.updateType}</span>
-                      <span className="timeline-date">
-                        {new Date(update.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="timeline-body">{update.body}</div>
-                    {update.statusAfter && (
-                      <div className="timeline-changes">
-                        {update.statusAfter && <span>Status → {update.statusAfter}</span>}
+                updates.map(update => {
+                  const isEditing = editingUpdateId === update.id
+                  return (
+                    <div key={update.id} className="timeline-item">
+                      <div className="timeline-header">
+                        <strong>{formatUpdateAuthor(update)}</strong>
+                        <span className="timeline-type">{update.updateType}</span>
+                        <div className="timeline-meta">
+                          <span className="timeline-date">
+                            {new Date(update.createdAt).toLocaleString()}
+                          </span>
+                          <div className="timeline-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-xs"
+                              onClick={() => startEditUpdate(update)}
+                              disabled={isSaving}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-xs"
+                              onClick={() => handleDeleteUpdate(update)}
+                              disabled={isSaving}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))
+                      {isEditing ? (
+                        <div className="timeline-edit-form">
+                          <select
+                            value={editUpdateForm.updateType}
+                            onChange={(e) => setEditUpdateForm({ ...editUpdateForm, updateType: e.target.value })}
+                            className="update-type-select"
+                          >
+                            <option value="Comment">Comment</option>
+                            <option value="Status change">Status change</option>
+                            <option value="Risk">Risk</option>
+                            <option value="Next step">Next step</option>
+                            <option value="Decision">Decision</option>
+                          </select>
+                          <textarea
+                            value={editUpdateForm.body}
+                            onChange={(e) => setEditUpdateForm({ ...editUpdateForm, body: e.target.value })}
+                            rows="3"
+                            className="update-textarea"
+                          />
+                          <div className="timeline-edit-actions">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-xs"
+                              onClick={cancelEditUpdate}
+                              disabled={isSaving}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-xs"
+                              onClick={() => handleSaveUpdateEdit(update)}
+                              disabled={!editUpdateForm.body.trim() || isSaving}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="timeline-body">{update.body || update.note}</div>
+                          {update.statusAfter && (
+                            <div className="timeline-changes">
+                              {update.statusAfter && <span>Status → {update.statusAfter}</span>}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )
+                })
               )}
             </div>
           </div>
@@ -718,20 +1333,191 @@ function TaskDetailDrawer({ task, projects, accounts, storageManager, session, o
 
 // Task Form Modal Component
 function TaskFormModal({ task, projects, accounts, storageManager, session, onClose, onSave, onClientCreated }) {
+  const getUserNameParts = () => {
+    let firstName =
+      session?.user?.userFirstName ||
+      session?.user?.firstName ||
+      session?.user?.first_name ||
+      session?.user?.given_name ||
+      ''
+    let lastName =
+      session?.user?.userLastName ||
+      session?.user?.lastName ||
+      session?.user?.last_name ||
+      session?.user?.family_name ||
+      ''
+
+    if ((!firstName || !lastName) && session?.user?.name) {
+      const parts = session.user.name.trim().split(/\s+/)
+      if (!firstName && parts.length >= 1) {
+        firstName = parts[0]
+      }
+      if (!lastName && parts.length >= 2) {
+        lastName = parts.slice(1).join(' ')
+      }
+    }
+
+    return { firstName, lastName }
+  }
+
+  const resolveOwnerName = () => {
+    if (task?.owner && !task.owner.includes('@')) return task.owner
+    if (task?.userFirstName) return task.userFirstName
+    if (task?.owner) return task.owner.split('@')[0]
+    if (task?.userEmail) return task.userEmail.split('@')[0]
+    const { firstName } = getUserNameParts()
+    if (firstName) return firstName
+    if (session?.user?.email) return session.user.email.split('@')[0]
+    return ''
+  }
+
   const [formData, setFormData] = useState({
     accountId: task?.accountId || task?.tamUnitId || '',
     projectId: task?.projectId || '',
-    title: task?.title || '',
+    title: task?.title || task?.name || '',
     status: task?.status || 'Not started',
-    dueDate: task?.dueDate || '',
+    dueDate: task?.dueDate || task?.dueAt || task?.date || '',
     priority: task?.priority || 'Medium',
-    owner: task?.owner || session?.user?.email || '',
-    description: task?.description || ''
+    owner: resolveOwnerName(),
+    description: task?.description || task?.details || task?.nextStep || ''
   })
+  const [titleTouched, setTitleTouched] = useState(false)
+  const titleFilled = Boolean(formData.title && formData.title.trim())
+  const dueDateFilled = Boolean(formData.dueDate)
+  const ownerFilled = Boolean(formData.owner && formData.owner.trim())
   const [isSaving, setIsSaving] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
   const [showNewProjectInput, setShowNewProjectInput] = useState(false)
+  const resolvedUserId = session?.user?.id || session?.user?.userId || session?.user?.user_id || task?.userId || task?.user_id || ''
+
+  const getAccountName = (accountId) => {
+    if (!accountId) return ''
+    const account = accounts.find((u) => u.id === accountId)
+    return account?.accountName || account?.name || ''
+  }
+
+  const getProjectName = (projectId) => {
+    if (!projectId) return ''
+    const project = projects.find((p) => p.id === projectId)
+    return project?.name || ''
+  }
+
+  const buildProjectPayload = (projectRecord) => {
+    const accountId = projectRecord.accountId || projectRecord.tamUnitId || formData.accountId || ''
+    const accountName = getAccountName(accountId)
+    const { firstName, lastName } = getUserNameParts()
+    const now = new Date().toISOString()
+    const userId = session?.user?.id || session?.user?.userId || session?.user?.user_id || ''
+    const userEmail = session?.user?.email || ''
+
+    return {
+      ...projectRecord,
+      id: projectRecord.id,
+      name: projectRecord.name || newProjectName.trim(),
+      accountId,
+      accountName,
+      userId,
+      userEmail,
+      userFirstName: firstName || '',
+      userLastName: lastName || '',
+      createdAt: projectRecord.createdAt || now,
+      updatedAt: projectRecord.updatedAt || projectRecord.createdAt || now,
+      updatedUserId: userId
+    }
+  }
+
+  const syncProjectToSheet = async (projectRecord) => {
+    const response = await fetch('/api/google_sheets/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildProjectPayload(projectRecord))
+    })
+
+    if (!response.ok) {
+      let message = 'Failed to sync project to Google Sheets'
+      try {
+        const data = await response.json()
+        message = data?.error || data?.details || message
+      } catch (error) {
+        console.error('Error parsing project sync response:', error)
+      }
+      throw new Error(message)
+    }
+
+    return response.json()
+  }
+
+  const buildSheetTaskPayload = (taskRecord, { isUpdate = false } = {}) => {
+    const accountId = taskRecord.accountId || taskRecord.tamUnitId || formData.accountId || ''
+    const projectId = taskRecord.projectId || formData.projectId || ''
+    const accountName = taskRecord.accountName || getAccountName(accountId)
+    const projectName = taskRecord.projectName || getProjectName(projectId)
+    const { firstName, lastName } = getUserNameParts()
+    const name = taskRecord.name || taskRecord.title || formData.title || ''
+    const details = taskRecord.details || taskRecord.description || formData.description || ''
+    const nextStep = taskRecord.nextStep || taskRecord.lastUpdateSummary || ''
+    const dueAt = taskRecord.dueAt || taskRecord.dueDate || taskRecord.date || formData.dueDate || ''
+    const createdAt = taskRecord.createdAt || new Date().toISOString()
+    const updatedAt = isUpdate ? new Date().toISOString() : (taskRecord.updatedAt || createdAt)
+    const updatedUserId = isUpdate
+      ? (resolvedUserId || taskRecord.updatedUserId || '')
+      : (taskRecord.updatedUserId || resolvedUserId || '')
+    const completed =
+      typeof taskRecord.completed === 'boolean'
+        ? taskRecord.completed
+        : (taskRecord.status || formData.status) === 'Done'
+
+    return {
+      ...taskRecord,
+      id: taskRecord.id,
+      name,
+      details,
+      priority: taskRecord.priority || formData.priority || '',
+      nextStep,
+      status: taskRecord.status || formData.status || '',
+      accountName,
+      accountId,
+      projectId,
+      projectName,
+      dueAt,
+      userId: resolvedUserId || taskRecord.userId || taskRecord.user_id || '',
+      userEmail: session?.user?.email || taskRecord.userEmail || taskRecord.user_email || '',
+      userFirstName: firstName || taskRecord.userFirstName || taskRecord.user_first_name || '',
+      userLastName: lastName || taskRecord.userLastName || taskRecord.user_last_name || '',
+      completed,
+      createdAt,
+      updatedAt,
+      updatedUserId
+    }
+  }
+
+  const syncTaskToSheet = async (taskRecord, { method = 'POST' } = {}) => {
+    if (!resolvedUserId) {
+      console.warn('No user id available for Google Sheets sync')
+      return { skipped: true }
+    }
+
+    const isUpdate = method === 'PUT'
+    const response = await fetch('/api/google_sheets/tasks', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildSheetTaskPayload(taskRecord, { isUpdate }))
+    })
+
+    if (!response.ok) {
+      let message = 'Failed to sync task to Google Sheets'
+      try {
+        const data = await response.json()
+        message = data?.error || data?.details || message
+      } catch (error) {
+        console.error('Error parsing sheet sync response:', error)
+      }
+      throw new Error(message)
+    }
+
+    return response.json()
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -748,9 +1534,31 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
       } else {
         taskToSave = storageManager.createTask({ ...formData })
       }
-      
-      await storageManager.saveTask(taskToSave)
-      onSave()
+
+      const { firstName, lastName } = getUserNameParts()
+      taskToSave = {
+        ...taskToSave,
+        owner: formData.owner || firstName || taskToSave.owner || '',
+        userFirstName: taskToSave.userFirstName || firstName || '',
+        userLastName: taskToSave.userLastName || lastName || '',
+        userEmail: taskToSave.userEmail || session?.user?.email || ''
+      }
+
+      if (resolvedUserId) {
+        taskToSave = { ...taskToSave, userId: resolvedUserId, user_id: resolvedUserId }
+      }
+
+      const savedTask = await storageManager.saveTask(taskToSave)
+      try {
+        await syncTaskToSheet(savedTask, { method: task ? 'PUT' : 'POST' })
+      } catch (error) {
+        console.error('Error syncing task to Google Sheets:', error)
+        alert(task
+          ? 'Task updated locally, but failed to sync to Google Sheets.'
+          : 'Task saved locally, but failed to sync to Google Sheets.'
+        )
+      }
+      onSave(savedTask)
     } catch (error) {
       console.error('Error saving task:', error)
       alert('Error saving task')
@@ -784,11 +1592,17 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
         dueDate: null
       })
       await storageManager.saveProject(project)
+      try {
+        await syncProjectToSheet(project)
+      } catch (error) {
+        console.error('Error syncing project to Google Sheets:', error)
+        alert('Project saved locally, but failed to sync to Google Sheets.')
+      }
       setFormData({ ...formData, projectId: project.id })
       setNewProjectName('')
       setShowNewProjectInput(false)
       if (onClientCreated) {
-        onClientCreated()
+        onClientCreated(project)
       }
     } catch (error) {
       console.error('Error creating project:', error)
@@ -800,7 +1614,10 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`modal-content task-form-modal${task ? ' is-editing' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <h2>{task ? 'Edit Task' : 'New Task'}</h2>
           <button onClick={onClose} className="btn-close">×</button>
@@ -878,6 +1695,8 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
               type="text"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onBlur={() => setTitleTouched(true)}
+              className={`${titleTouched ? 'input-touched' : ''} ${titleFilled ? 'input-filled' : ''}`.trim()}
               required
             />
           </div>
@@ -923,6 +1742,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
                 type="date"
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                className={dueDateFilled ? 'input-filled' : ''}
               />
             </div>
 
@@ -932,6 +1752,7 @@ function TaskFormModal({ task, projects, accounts, storageManager, session, onCl
                 type="text"
                 value={formData.owner}
                 onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
+                className={ownerFilled ? 'input-filled' : ''}
                 required
               />
             </div>

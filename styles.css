@@ -15,6 +15,8 @@ body {
     line-height: 1.6;
     color: #e2e8f0;
     background-color: #0f172a;
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
 }
 
 a {
@@ -148,6 +150,12 @@ a {
     padding: 32px 0;
 }
 
+.page-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
 /* Dashboard layout */
 .dashboard-header {
     display: flex;
@@ -155,6 +163,46 @@ a {
     align-items: flex-start;
     gap: 20px;
     padding: 0 20px 24px;
+}
+
+.page-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 0 20px 16px;
+}
+
+.dashboard-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-end;
+}
+
+.refresh-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: transparent;
+    color: #cbd5f5;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.refresh-button:hover {
+    background: #1e293b;
+    color: #f8fafc;
+    border-color: #64748b;
+}
+
+.refresh-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .dashboard-header h1 {
@@ -747,6 +795,31 @@ a {
     border-color: #27ae60;
 }
 
+.task-form .form-group input:valid {
+    border-color: #334155;
+}
+
+.task-form .form-group input.input-filled:valid {
+    border-color: #27ae60;
+}
+
+.task-form input:not(.input-touched):invalid {
+    border-color: #334155;
+    box-shadow: none;
+}
+
+.task-form input.input-touched:invalid {
+    border-color: #e74c3c;
+    box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.2);
+}
+
+.task-form-modal.is-editing .form-group input:valid:not(:placeholder-shown),
+.task-form-modal.is-editing .form-group select:valid,
+.task-form-modal.is-editing .form-group textarea:valid:not(:placeholder-shown) {
+    border-color: #334155;
+    box-shadow: none;
+}
+
 /* Required field indicator */
 .form-group label::after {
     content: '';
@@ -1301,18 +1374,11 @@ a {
 
 /* Task Tracker Styles */
 .tasks-container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 20px;
+    width: 100%;
 }
 
 .tasks-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     margin-bottom: 30px;
-    flex-wrap: wrap;
-    gap: 20px;
 }
 
 .tasks-filters {
@@ -1324,6 +1390,26 @@ a {
     gap: 10px;
     flex-wrap: wrap;
     margin-bottom: 15px;
+    align-items: center;
+}
+
+.filter-tabs .client-filter {
+    margin: 0;
+}
+
+.filter-tabs .client-select {
+    min-width: 220px;
+}
+
+.filter-tabs .client-filter.is-hidden {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.filter-tabs .client-filter.is-visible {
+    visibility: visible;
+    opacity: 1;
 }
 
 .filter-tab {
@@ -1425,6 +1511,15 @@ a {
     color: #f8fafc;
 }
 
+.owner-cell {
+    display: flex;
+    align-items: center;
+}
+
+.owner-name {
+    white-space: nowrap;
+}
+
 .next-step-cell {
     max-width: 200px;
     font-size: 0.85rem;
@@ -1466,6 +1561,12 @@ a {
     flex-direction: column;
     animation: slideIn 0.3s ease;
     overflow-y: auto;
+}
+
+.task-drawer-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 @keyframes slideIn {
@@ -1616,10 +1717,46 @@ a {
     margin-left: auto;
 }
 
+.timeline-meta {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.timeline-meta .timeline-date {
+    margin-left: 0;
+}
+
+.timeline-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.timeline-actions .btn,
+.timeline-edit-actions .btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+}
+
 .timeline-body {
     color: #e2e8f0;
     line-height: 1.6;
     margin-bottom: 8px;
+}
+
+.timeline-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.timeline-edit-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
 }
 
 .timeline-changes {

@@ -43,6 +43,26 @@ const isCacheFresh = (cached) => {
   return Date.now() - cachedAt < CACHE_TTL_MS
 }
 
+const mergeListsById = (...lists) => {
+  const merged = new Map()
+  lists.forEach((list) => {
+    (list || []).forEach((item) => {
+      if (!item?.id) return
+      merged.set(item.id, item)
+    })
+  })
+  return Array.from(merged.values())
+}
+
+const pruneLocalProjectsAgainstSheet = async (storageManager, localProjects, sheetProjects) => {
+  if (!storageManager || !Array.isArray(sheetProjects)) return
+  const sheetProjectIds = new Set(sheetProjects.map((project) => project?.id).filter(Boolean))
+  const staleProjects = (localProjects || []).filter((project) => project?.id && !sheetProjectIds.has(project.id))
+  for (const project of staleProjects) {
+    await storageManager.deleteProject(project.id)
+  }
+}
+
 export default function Projects() {
   const { data: session, status } = useSession()
   const [storageManager, setStorageManager] = useState(null)
@@ -55,6 +75,7 @@ export default function Projects() {
   const [newProjectAccount, setNewProjectAccount] = useState('')
   const [newProjectDueDate, setNewProjectDueDate] = useState('')
   const [isCreatingProject, setIsCreatingProject] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     if (typeof window !== "undefined" && StorageManager) {
@@ -87,9 +108,15 @@ export default function Projects() {
         'summary'
       )
 
-      const nextProjects = summary?.projects ?? cachedData.projects ?? []
+      const sheetProjects = summary?.projects
+      const nextProjects = sheetProjects ?? cachedData.projects ?? []
       const nextTasks = summary?.tasks ?? cachedData.tasks ?? []
       const nextAccounts = summary?.accounts ?? cachedData.accounts ?? cachedData.tamUnits ?? []
+
+      if (storageManager && Array.isArray(sheetProjects)) {
+        const localProjects = await storageManager.getProjects()
+        await pruneLocalProjectsAgainstSheet(storageManager, localProjects, sheetProjects)
+      }
 
       setProjects(nextProjects)
       setTasks(nextTasks)
@@ -105,6 +132,42 @@ export default function Projects() {
     }
   }
 
+  const handleRefresh = async () => {
+    const userId = session?.user?.id
+    if (!userId) return
+
+    setIsRefreshing(true)
+    try {
+      const encodedUserId = encodeURIComponent(userId)
+      const [summary, updates] = await Promise.all([
+        fetchSheetData(`/api/google_sheets/summary?userId=${encodedUserId}&force=1`, 'summary'),
+        fetchSheetData(`/api/google_sheets/updates?userId=${encodedUserId}`, 'updates')
+      ])
+
+      if (!summary) return
+
+      const nextProjects = summary?.projects ?? []
+      const nextTasks = summary?.tasks ?? []
+      const nextAccounts = summary?.accounts ?? []
+      const nextUpdates = Array.isArray(updates) ? updates : []
+
+      setProjects(nextProjects)
+      setTasks(nextTasks)
+      setAccounts(nextAccounts)
+
+      writeSheetCache(userId, {
+        accounts: nextAccounts,
+        projects: nextProjects,
+        tasks: nextTasks,
+        updates: nextUpdates
+      })
+    } catch (error) {
+      console.error('Error refreshing sheet data:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   useEffect(() => {
     if (status !== "authenticated") return
     const userId = session?.user?.id
@@ -117,9 +180,8 @@ export default function Projects() {
       setAccounts(cached.accounts || cached.tamUnits || [])
     }
 
-    if (cached && isCacheFresh(cached)) return
     loadData(userId, cached)
-  }, [status, session?.user?.id])
+  }, [status, session?.user?.id, storageManager])
 
   const toggleProject = (projectId) => {
     setExpandedProjects((prev) => ({
@@ -165,13 +227,23 @@ export default function Projects() {
         dueDate: newProjectDueDate || null
       })
       await storageManager.saveProject(project)
+      const nextProjects = mergeListsById(projects, [project])
+      setProjects(nextProjects)
+
+      const userId = session?.user?.id
+      if (userId) {
+        const cached = readSheetCache(userId) || {}
+        const mergedProjects = mergeListsById(cached.projects, [project])
+        writeSheetCache(userId, {
+          accounts: cached.accounts || cached.tamUnits || accounts || [],
+          projects: mergedProjects,
+          tasks: cached.tasks || tasks || []
+        })
+      }
       setNewProjectName('')
       setNewProjectAccount('')
       setNewProjectDueDate('')
       setShowNewProject(false)
-      if (session?.user?.id) {
-        await loadData(session.user.id, readSheetCache(session.user.id))
-      }
     } catch (error) {
       console.error('Error creating project:', error)
       alert('Error creating project')
@@ -207,154 +279,172 @@ export default function Projects() {
         <nav className="navbar">
           <div className="nav-container">
             <div className="nav-logo">
-              <h1>TAM OS</h1>
+              <h1>TAMos</h1>
             </div>
             <div className="nav-menu">
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link active">My Projects</Link>
-              <Link href="/my-ics" className="nav-link">My ICs</Link>
+              <Link href="/my-ics" className="nav-link">My Team</Link>
               <Link href="/accounts" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>
 
         <div className="app-main">
-          <div className="page-topbar">
-            <button 
-              onClick={() => signOut({ callbackUrl: '/' })} 
-              className="btn btn-secondary auth-button"
-            >
-              Sign out
-            </button>
-          </div>
           <main className="main-content">
-            <div className="dashboard-header">
-              <div>
-                <h1>My Projects</h1>
-                <p>Track projects and roll up the tasks underneath each one.</p>
+            <div className="page-container">
+              <div className="page-actions">
+                <div className="dashboard-user">
+                  <button
+                    type="button"
+                    className="refresh-button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    aria-label="Refresh from Google Sheets"
+                    title="Refresh"
+                  >
+                    ↻
+                  </button>
+                  <span>{session.user?.name || session.user?.email}</span>
+                  <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
+                  <button
+                    onClick={() => signOut({ callbackUrl: '/' })}
+                    className="btn btn-secondary auth-button"
+                  >
+                    Sign out
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <section className="card">
-              <div className="card-title">Projects</div>
-              <div className="card-actions">
+              <div className="dashboard-header">
+                <div>
+                  <h1>My Projects</h1>
+                  <p>Track projects and roll up the tasks underneath each one.</p>
+                </div>
+              </div>
+
+              <div className="page-actions">
                 <button
                   type="button"
-                  className="btn btn-secondary btn-xs"
+                  className="btn btn-primary"
                   onClick={() => setShowNewProject(true)}
                 >
                   + New Project
                 </button>
               </div>
-              {showNewProject && (
-                <div className="modal-overlay" onClick={() => setShowNewProject(false)}>
-                  <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>
-                    <div className="modal-header">
-                      <h2>New Project</h2>
-                      <button onClick={() => setShowNewProject(false)} className="btn-close">×</button>
-                    </div>
-                    <div className="task-form">
-                      <div className="form-group">
-                        <label>Project Name *</label>
-                        <input
-                          type="text"
-                          value={newProjectName}
-                          onChange={(e) => setNewProjectName(e.target.value)}
-                          placeholder="Project name"
-                        />
+
+              <section className="card">
+                <div className="card-title">Projects</div>
+                {showNewProject && (
+                  <div className="modal-overlay" onClick={() => setShowNewProject(false)}>
+                    <div className="modal-content task-form-modal" onClick={(e) => e.stopPropagation()}>
+                      <div className="modal-header">
+                        <h2>New Project</h2>
+                        <button onClick={() => setShowNewProject(false)} className="btn-close">×</button>
                       </div>
-                      <div className="form-group">
-                        <label>Account *</label>
-                        <select
-                          value={newProjectAccount}
-                          onChange={(e) => setNewProjectAccount(e.target.value)}
-                        >
-                          <option value="">Select Account</option>
-                          {accounts.map((account) => (
-                            <option key={account.id} value={account.id}>
-                              {account.accountName || account.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Due Date</label>
-                        <input
-                          type="date"
-                          value={newProjectDueDate}
-                          onChange={(e) => setNewProjectDueDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="form-actions">
-                        <button type="button" className="btn btn-secondary" onClick={() => setShowNewProject(false)}>
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCreateProject}
-                          className="btn btn-primary"
-                          disabled={isCreatingProject}
-                        >
-                          {isCreatingProject ? 'Creating...' : 'Create Project'}
-                        </button>
+                      <div className="task-form">
+                        <div className="form-group">
+                          <label>Project Name *</label>
+                          <input
+                            type="text"
+                            value={newProjectName}
+                            onChange={(e) => setNewProjectName(e.target.value)}
+                            placeholder="Project name"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label>Account *</label>
+                          <select
+                            value={newProjectAccount}
+                            onChange={(e) => setNewProjectAccount(e.target.value)}
+                          >
+                            <option value="">Select Account</option>
+                            {accounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {account.accountName || account.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-group">
+                          <label>Due Date</label>
+                          <input
+                            type="date"
+                            value={newProjectDueDate}
+                            onChange={(e) => setNewProjectDueDate(e.target.value)}
+                          />
+                        </div>
+                        <div className="form-actions">
+                          <button type="button" className="btn btn-secondary" onClick={() => setShowNewProject(false)}>
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCreateProject}
+                            className="btn btn-primary"
+                            disabled={isCreatingProject}
+                          >
+                            {isCreatingProject ? 'Creating...' : 'Create Project'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-
-              <div className="card-list">
-                {visibleProjects.length === 0 && (
-                  <div className="card-list-item">No projects yet.</div>
                 )}
-                {visibleProjects.map((project) => {
-                  const projectTasks = getProjectTasks(project.id)
-                  return (
-                    <div key={project.id} className="card-list-item">
-                      <div className="disclosure-row">
-                        <div>
-                          <div className="card-item-title">{project.name}</div>
-                          <div className="disclosure-meta">
-                            {getAccountName(project.accountId || project.tamUnitId)} • {projectTasks.length} tasks
+
+                <div className="card-list">
+                  {visibleProjects.length === 0 && (
+                    <div className="card-list-item">No projects yet.</div>
+                  )}
+                  {visibleProjects.map((project) => {
+                    const projectTasks = getProjectTasks(project.id)
+                    return (
+                      <div key={project.id} className="card-list-item">
+                        <div className="disclosure-row">
+                          <div>
+                            <div className="card-item-title">{project.name}</div>
+                            <div className="disclosure-meta">
+                              {getAccountName(project.accountId || project.tamUnitId)} • {projectTasks.length} tasks
+                            </div>
                           </div>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-small"
+                            onClick={() => toggleProject(project.id)}
+                          >
+                            {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-small"
-                          onClick={() => toggleProject(project.id)}
-                        >
-                          {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
-                        </button>
+                        {expandedProjects[project.id] && (
+                          <div className="nested-list">
+                            {projectTasks.length === 0 ? (
+                              <div className="nested-item muted">No tasks assigned yet.</div>
+                            ) : (
+                              projectTasks.map((task, index) => {
+                                const taskTitle = task.title || task.name || task.taskName || task.summary || 'Untitled task'
+                                const taskStatus = task.status || task.state || '—'
+                                return (
+                                  <div key={task.id || `${project.id}-${index}`} className="nested-item">
+                                    <span>{taskTitle}</span>
+                                    <span className="muted">{taskStatus}</span>
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {expandedProjects[project.id] && (
-                        <div className="nested-list">
-                          {projectTasks.length === 0 ? (
-                            <div className="nested-item muted">No tasks assigned yet.</div>
-                          ) : (
-                            projectTasks.map((task, index) => {
-                              const taskTitle = task.title || task.name || task.taskName || task.summary || 'Untitled task'
-                              const taskStatus = task.status || task.state || '—'
-                              return (
-                                <div key={task.id || `${project.id}-${index}`} className="nested-item">
-                                  <span>{taskTitle}</span>
-                                  <span className="muted">{taskStatus}</span>
-                                </div>
-                              )
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
+                    )
+                  })}
+                </div>
+              </section>
+            </div>
           </main>
 
           <footer className="footer">
             <div className="container">
-              <p>&copy; 2024 TAM OS. All rights reserved.</p>
+              <p>&copy; 2026 TAMos. All rights reserved.</p>
             </div>
           </footer>
         </div>

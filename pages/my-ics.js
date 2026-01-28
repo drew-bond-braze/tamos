@@ -112,8 +112,8 @@ export default function MyICs() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/accounts" className="nav-link">My Accounts</Link>
               <Link href="/my-ics" className="nav-link active">My Team</Link>
+              <Link href="/accounts" className="nav-link">My Accounts</Link>
             </div>
           </div>
         </nav>

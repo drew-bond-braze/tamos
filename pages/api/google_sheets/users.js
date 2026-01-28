@@ -1,8 +1,26 @@
 import { google } from 'googleapis';
 
+const normalizeKey = (value) => String(value ?? '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, '');
+
+const findHeaderIndex = (headers, candidates) => {
+  const normalizedHeaders = headers.map(normalizeKey);
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeKey(candidate);
+    const index = normalizedHeaders.indexOf(normalizedCandidate);
+    if (index !== -1) return index;
+  }
+  return -1;
+};
+
+const normalizeEmailValue = (value) => String(value ?? '').trim().toLowerCase();
+
 // 1. Keep your logic function (Keep it exported if you want to use it elsewhere)
 export async function getUser(userEmail) {
   try {
+    if (!userEmail) return null;
     const auth = new google.auth.GoogleAuth({
       credentials: {
         client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -24,15 +42,18 @@ export async function getUser(userEmail) {
     if (!rows || rows.length === 0) return null;
 
     const headers = rows[0];
-    const emailIndex = headers.indexOf('email_address');
+    const emailIndex = findHeaderIndex(headers, ['email_address', 'email', 'emailaddress']);
 
-    if (emailIndex === -1) throw new Error("Column 'email_address' not found");
+    if (emailIndex === -1) {
+      throw new Error("Column 'email' or 'email_address' not found");
+    }
 
-    const userRow = rows.find(row => row[emailIndex] === userEmail);
+    const normalizedEmail = normalizeEmailValue(userEmail);
+    const userRow = rows.find(row => normalizeEmailValue(row[emailIndex]) === normalizedEmail);
     if (!userRow) return null;
 
     return headers.reduce((acc, header, index) => {
-      acc[header] = userRow[index];
+      acc[header] = userRow[index] ?? '';
       return acc;
     }, {});
   } catch (error) {

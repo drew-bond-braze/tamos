@@ -73,8 +73,8 @@ const icProfiles = [
 export default function MyICs() {
   const { data: session, status } = useSession()
   const [selectedIc, setSelectedIc] = useState("all")
-  const [teamProfiles, setTeamProfiles] = useState(icProfiles)
-  const [isTeamLoading, setIsTeamLoading] = useState(false)
+  const [teamProfiles, setTeamProfiles] = useState([])
+  const [isTeamLoading, setIsTeamLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [teamError, setTeamError] = useState(null)
 
@@ -312,34 +312,36 @@ export default function MyICs() {
                 {!isTeamLoading && teamError && (
                   <div className="card-list-item">{teamError}</div>
                 )}
-                <div className="filter-tabs ic-tabs">
-                  <button
-                    className={selectedIc === "all" ? "filter-tab active" : "filter-tab"}
-                    onClick={() => setSelectedIc("all")}
-                  >
-                    All Team Members
-                  </button>
-                  {teamProfiles.map((ic) => (
-                    <button
-                      key={ic.id}
-                      className={selectedIc === ic.id ? "filter-tab active" : "filter-tab"}
-                      onClick={() => setSelectedIc(ic.id)}
-                    >
-                      {ic.name}
-                    </button>
-                  ))}
-                </div>
+                {!isTeamLoading && !teamError && (
+                  <>
+                    <div className="filter-tabs ic-tabs">
+                      <button
+                        className={selectedIc === "all" ? "filter-tab active" : "filter-tab"}
+                        onClick={() => setSelectedIc("all")}
+                      >
+                        All Team Members
+                      </button>
+                      {teamProfiles.map((ic) => (
+                        <button
+                          key={ic.id}
+                          className={selectedIc === ic.id ? "filter-tab active" : "filter-tab"}
+                          onClick={() => setSelectedIc(ic.id)}
+                        >
+                          {ic.name}
+                        </button>
+                      ))}
+                    </div>
 
-                <div className="ic-grid">
-                  {visibleIcs.map((ic) => (
-                    <div key={ic.id} className="card ic-card">
-                      <div className="ic-header">
-                        <div>
-                          <div className="card-item-title">{ic.name}</div>
-                          <div className="card-item-subtitle">{ic.summary}</div>
-                        </div>
-                        <span className="pill neutral">IC</span>
-                      </div>
+                    <div className="ic-grid">
+                      {visibleIcs.map((ic) => (
+                        <div key={ic.id} className="card ic-card">
+                          <div className="ic-header">
+                            <div>
+                              <div className="card-item-title">{ic.name}</div>
+                              <div className="card-item-subtitle">{ic.summary}</div>
+                            </div>
+                            <span className="pill neutral">IC</span>
+                          </div>
 
                       <div className="ic-section">
                         <div className="disclosure-meta">TAM Units • {ic.tamUnits.length} total</div>
@@ -435,9 +437,11 @@ export default function MyICs() {
                           ))}
                         </div>
                       </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
               </section>
             </div>
           </main>

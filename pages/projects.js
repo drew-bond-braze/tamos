@@ -422,8 +422,8 @@ export default function Projects() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link active">My Projects</Link>
-              <Link href="/my-ics" className="nav-link">My Team</Link>
               <Link href="/accounts" className="nav-link">My Accounts</Link>
+              <Link href="/my-ics" className="nav-link">My Team</Link>
             </div>
           </div>
         </nav>
@@ -505,23 +505,27 @@ export default function Projects() {
                             <button
                               type="button"
                               className="btn btn-secondary btn-small"
-                              onClick={() => handleEditProject(project)}
+                              onClick={() => toggleProject(project.id)}
                             >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-danger btn-small"
-                              onClick={() => handleDeleteProject(project)}
-                            >
-                              Delete
+                              {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
                             </button>
                             <button
                               type="button"
                               className="btn btn-secondary btn-small"
-                              onClick={() => toggleProject(project.id)}
+                              onClick={() => handleEditProject(project)}
+                              aria-label="Edit project"
+                              title="Edit"
                             >
-                              {expandedProjects[project.id] ? 'Hide tasks' : 'View tasks'}
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-small"
+                              onClick={() => handleDeleteProject(project)}
+                              aria-label="Delete project"
+                              title="Delete"
+                            >
+                              🗑️
                             </button>
                           </div>
                         </div>
@@ -536,7 +540,7 @@ export default function Projects() {
                                 return (
                                   <div key={task.id || `${project.id}-${index}`} className="nested-item">
                                     <span>{taskTitle}</span>
-                                    <span className="muted">{taskStatus}</span>
+                                    <span className="muted"> - {taskStatus}</span>
                                   </div>
                                 )
                               })

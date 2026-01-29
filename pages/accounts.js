@@ -239,8 +239,8 @@ export default function Accounts() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/my-ics" className="nav-link">My Team</Link>
               <Link href="/accounts" className="nav-link active">My Accounts</Link>
+              <Link href="/my-ics" className="nav-link">My Team</Link>
             </div>
           </div>
         </nav>
@@ -329,7 +329,7 @@ export default function Accounts() {
                                           projectTasks.map((task) => (
                                             <div key={task.id} className="nested-item">
                                               <span>{task.name}</span>
-                                              <span className="muted">{task.status}</span>
+                                              <span className="muted"> - {task.status}</span>
                                             </div>
                                           ))
                                         )}

@@ -1,7 +1,7 @@
 import { useSession, signOut } from "next-auth/react"
 import Link from "next/link"
 import Head from "next/head"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 const icProfiles = [
   {
@@ -73,11 +73,165 @@ const icProfiles = [
 export default function MyICs() {
   const { data: session, status } = useSession()
   const [selectedIc, setSelectedIc] = useState("all")
+  const [teamProfiles, setTeamProfiles] = useState(icProfiles)
+  const [isTeamLoading, setIsTeamLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [teamError, setTeamError] = useState(null)
+
+  const isUpcomingWithinTwoWeeks = (value) => {
+    if (!value) return false
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return false
+    const now = new Date()
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const endOfWindow = new Date(startOfToday.getTime() + 14 * 24 * 60 * 60 * 1000)
+    return date >= startOfToday && date <= endOfWindow
+  }
+
+  const getDueDateValue = (record) => (
+    record?.dueAt ||
+    record?.due_at ||
+    record?.dueDate ||
+    record?.date ||
+    record?.targetDate ||
+    record?.targetdate ||
+    null
+  )
+
+  const formatDueInDays = (value) => {
+    if (!value) return null
+    const dueDate = new Date(value)
+    if (Number.isNaN(dueDate.getTime())) return null
+    const now = new Date()
+    const msDiff = dueDate.getTime() - now.getTime()
+    const dayMs = 24 * 60 * 60 * 1000
+    const days = Math.ceil(msDiff / dayMs)
+    if (days <= 0) return 'Due today'
+    return `Due in ${days} day${days === 1 ? '' : 's'}`
+  }
 
   const visibleIcs = useMemo(() => {
-    if (selectedIc === "all") return icProfiles
-    return icProfiles.filter((ic) => ic.id === selectedIc)
-  }, [selectedIc])
+    if (selectedIc === "all") return teamProfiles
+    return teamProfiles.filter((ic) => ic.id === selectedIc)
+  }, [selectedIc, teamProfiles])
+
+  const loadTeamProfiles = async ({ force = false, useLoading = false } = {}) => {
+    if (status !== "authenticated") return
+
+    let isCancelled = false
+
+    const buildUserName = (user) => {
+      const fullName = user.fullName || user.full_name || ''
+      if (fullName) return fullName
+      const firstName = user.firstName || user.first_name || ''
+      const lastName = user.lastName || user.last_name || ''
+      const combined = `${firstName} ${lastName}`.trim()
+      if (combined) return combined
+      return user.email || user.email_address || 'Unknown'
+    }
+
+    const buildSummary = (accounts = [], projects = [], tasks = []) => (
+      `${accounts.length} TAM units • ${projects.length} projects • ${tasks.length} tasks`
+    )
+
+    const normalizeProject = (project) => {
+      if (!project) return null
+      const accountId = project.accountId || project.tamUnitId || project.account_id
+      return {
+        ...project,
+        accountId,
+        name: project.name || project.projectName || 'Project',
+        status: project.status || project.health || project.healthStatus || '—'
+      }
+    }
+
+    const normalizeTask = (task) => {
+      if (!task) return null
+      const accountId = task.accountId || task.tamUnitId || task.account_id
+      const projectId = task.projectId || task.project_id || task.projectID || task.project
+      return {
+        ...task,
+        accountId,
+        projectId,
+        title: task.title || task.name || task.taskName || task.summary || 'Untitled task',
+        status: task.status || task.state || '—'
+      }
+    }
+
+    const buildProfile = (user, summary) => {
+      const accounts = summary?.accounts ?? []
+      const projects = (summary?.projects ?? []).map(normalizeProject).filter(Boolean)
+      const tasks = (summary?.tasks ?? []).map(normalizeTask).filter(Boolean)
+
+      return {
+        id: user.id || user.user_id || user.userId || user.email || user.email_address,
+        name: buildUserName(user),
+        summary: buildSummary(accounts, projects, tasks),
+        tamUnits: accounts.map((account) => ({
+          id: account.id,
+          name: account.accountName || account.name || 'Account',
+          status: account.status || account.health || account.healthStatus || '—',
+          projects: projects.filter((project) => project.accountId === account.id),
+          tasks: tasks.filter((task) => task.accountId === account.id)
+        }))
+      }
+    }
+
+    if (useLoading) {
+      setIsTeamLoading(true)
+    } else {
+      setIsRefreshing(true)
+    }
+    setTeamError(null)
+
+    try {
+      const usersResponse = await fetch('/api/google_sheets/users?testManager=test_ic', { method: 'GET' })
+      if (!usersResponse.ok) {
+        throw new Error('Failed to load team users')
+      }
+      const users = await usersResponse.json()
+      const normalizedUsers = Array.isArray(users) ? users : []
+
+      const profiles = await Promise.all(
+        normalizedUsers.map(async (user) => {
+          const userId = user.id || user.user_id || user.userId || user.email || user.email_address
+          if (!userId) {
+            return buildProfile(user, null)
+          }
+          const summaryResponse = await fetch(
+            `/api/google_sheets/summary?userId=${encodeURIComponent(userId)}${force ? '&force=1' : ''}`,
+            { method: 'GET' }
+          )
+          const summary = summaryResponse.ok ? await summaryResponse.json() : null
+          return buildProfile(user, summary)
+        })
+      )
+
+      if (!isCancelled) {
+        setTeamProfiles(profiles)
+      }
+    } catch (error) {
+      console.error('Error loading team data:', error)
+      if (!isCancelled) {
+        setTeamError('Unable to load team members.')
+        setTeamProfiles([])
+      }
+    } finally {
+      if (!isCancelled) {
+        setIsTeamLoading(false)
+        setIsRefreshing(false)
+      }
+    }
+
+    return () => {
+      isCancelled = true
+    }
+  }
+
+  useEffect(() => {
+    if (status !== "authenticated") return
+    loadTeamProfiles({ useLoading: true })
+  }, [status])
 
   if (status === "loading") {
     return (
@@ -112,8 +266,8 @@ export default function MyICs() {
               <Link href="/" className="nav-link">My Dashboard</Link>
               <Link href="/tasks" className="nav-link">My Tasks</Link>
               <Link href="/projects" className="nav-link">My Projects</Link>
-              <Link href="/my-ics" className="nav-link active">My Team</Link>
               <Link href="/accounts" className="nav-link">My Accounts</Link>
+              <Link href="/my-ics" className="nav-link active">My Team</Link>
             </div>
           </div>
         </nav>
@@ -123,6 +277,16 @@ export default function MyICs() {
             <div className="page-container">
               <div className="page-actions">
                 <div className="dashboard-user">
+                  <button
+                    type="button"
+                    className="refresh-button"
+                    onClick={() => loadTeamProfiles({ force: true })}
+                    disabled={isRefreshing || isTeamLoading}
+                    aria-label="Refresh from Google Sheets"
+                    title="Refresh"
+                  >
+                    ↻
+                  </button>
                   <span>{session.user?.name || session.user?.email}</span>
                   <div className="avatar">{(session.user?.name || 'U').charAt(0)}</div>
                   <button
@@ -142,6 +306,12 @@ export default function MyICs() {
 
               <section className="card">
                 <div className="card-title">Team Overview</div>
+                {isTeamLoading && (
+                  <div className="card-list-item">Loading team members...</div>
+                )}
+                {!isTeamLoading && teamError && (
+                  <div className="card-list-item">{teamError}</div>
+                )}
                 <div className="filter-tabs ic-tabs">
                   <button
                     className={selectedIc === "all" ? "filter-tab active" : "filter-tab"}
@@ -149,7 +319,7 @@ export default function MyICs() {
                   >
                     All Team Members
                   </button>
-                  {icProfiles.map((ic) => (
+                  {teamProfiles.map((ic) => (
                     <button
                       key={ic.id}
                       className={selectedIc === ic.id ? "filter-tab active" : "filter-tab"}
@@ -172,51 +342,98 @@ export default function MyICs() {
                       </div>
 
                       <div className="ic-section">
-                        <details className="ic-disclosure">
-                          <summary>
-                            <span>TAM Units</span>
-                            <span className="disclosure-meta">{ic.tamUnits.length} total</span>
-                          </summary>
-                          <div className="nested-list">
-                            {ic.tamUnits.map((unit) => (
-                              <div key={unit.name} className="nested-item">
-                                <div className="card-item-title">{unit.name}</div>
-                                <div className="card-item-subtitle">{unit.status}</div>
+                        <div className="disclosure-meta">TAM Units • {ic.tamUnits.length} total</div>
+                        <div className="nested-list" style={{ marginTop: '10px' }}>
+                          {ic.tamUnits.map((unit) => (
+                            <details key={unit.id || unit.name} className="ic-disclosure">
+                              <summary className="ic-disclosure-summary-left">
+                                <span>{unit.name}</span>
+                                {(() => {
+                                  const unitProjects = unit.projects || []
+                                  const unitTasks = unit.tasks || []
+                                  const upcomingTaskCount = unitTasks.filter((task) =>
+                                    isUpcomingWithinTwoWeeks(getDueDateValue(task))
+                                  ).length
+                                  return (
+                                    <>
+                                      <span className="pill neutral">
+                                        {upcomingTaskCount} tasks upcoming
+                                      </span>
+                                    </>
+                                  )
+                                })()}
+                              </summary>
+                              {(() => {
+                                const unitProjects = unit.projects || []
+                                const unitTasks = unit.tasks || []
+                                const upcomingProjectTaskCount = (projectId) => (
+                                  unitTasks.filter(
+                                    (task) =>
+                                      task.projectId === projectId &&
+                                      isUpcomingWithinTwoWeeks(getDueDateValue(task))
+                                  ).length
+                                )
+                                const unitUpcomingTasks = unitTasks.filter((task) =>
+                                  isUpcomingWithinTwoWeeks(getDueDateValue(task))
+                                ).length
+                                return (
+                                  <>
+                              <div className="nested-list">
+                                <details className="ic-disclosure">
+                                  <summary>
+                                    <span>Projects</span>
+                                    <span className="disclosure-meta"> - {unitProjects.length} total</span>
+                                    <span className="pill neutral">{unitUpcomingTasks} tasks upcoming</span>
+                                  </summary>
+                                  {unitProjects.length === 0 ? (
+                                    <div className="nested-item muted">No projects yet.</div>
+                                  ) : (
+                                    unitProjects.map((project) => {
+                                      const projectTasks = unitTasks.filter(
+                                        (task) => task.projectId && task.projectId === project.id
+                                      )
+                                      const projectUpcomingTasks = upcomingProjectTaskCount(project.id)
+                                      return (
+                                        <div key={project.id || project.name} className="nested-item">
+                                          <div className="card-item-title">{project.name}</div>
+                                          <div className="card-item-subtitle">
+                                            {project.status}
+                                            {(() => {
+                                              const dueLabel = formatDueInDays(getDueDateValue(project))
+                                              return dueLabel ? ` - ${dueLabel}` : ''
+                                            })()}
+                                          </div>
+                                          <div className="disclosure-meta" style={{ marginTop: '4px' }}>
+                                            {projectUpcomingTasks} tasks upcoming
+                                          </div>
+                                          {projectTasks.length > 0 && (
+                                            <div className="nested-list" style={{ marginTop: '8px' }}>
+                                              {projectTasks.map((task) => (
+                                                <div key={task.id || task.title} className="nested-item">
+                                                  <span>{task.title}</span>
+                                                  <span className="muted">
+                                                    {' '} - {task.status}
+                                                    {(() => {
+                                                      const dueLabel = formatDueInDays(getDueDateValue(task))
+                                                      return dueLabel ? ` - ${dueLabel}` : ''
+                                                    })()}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })
+                                  )}
+                                </details>
                               </div>
-                            ))}
-                          </div>
-                        </details>
-                      </div>
-
-                      <div className="ic-section">
-                        <details className="ic-disclosure">
-                          <summary>
-                            <span>Projects</span>
-                            <span className="disclosure-meta">{ic.projects.length} total</span>
-                          </summary>
-                          <div className="nested-list">
-                            {ic.projects.map((project) => (
-                              <div key={project.name} className="nested-item">
-                                <div className="card-item-title">{project.name}</div>
-                                <div className="card-item-subtitle">{project.status}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      </div>
-
-                      <div className="ic-section">
-                        <details className="ic-disclosure">
-                          <summary>
-                            <span>Tasks</span>
-                            <span className="disclosure-meta">{ic.tasks.length} total</span>
-                          </summary>
-                          <div className="nested-list">
-                            {ic.tasks.map((task) => (
-                              <div key={task} className="nested-item">{task}</div>
-                            ))}
-                          </div>
-                        </details>
+                                  </>
+                                )
+                              })()}
+                            </details>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   ))}
